@@ -1,11 +1,11 @@
-extern crate chrono;
+// extern crate chrono;
 extern crate defer;
 
 use metaflac::{Block, Tag};
 // use std::collections::HashMap;
-use chrono::Duration;
 use std::io;
 use std::path;
+use std::time::Duration;
 use std::vec::Vec;
 
 #[derive(Default, Debug)]
@@ -42,7 +42,7 @@ pub struct Track {
 impl Default for Track {
   fn default() -> Self {
     Track {
-      duration: Duration::seconds(0),
+      duration: Duration::from_secs(0),
       path: path::PathBuf::default(),
       title: String::default(),
       artist: String::default(),
@@ -54,7 +54,7 @@ impl Default for Track {
   }
 }
 
-const billion: u64 = 1_000_000_000;
+const BILLION: u64 = 1_000_000_000;
 
 impl Track {
   fn fill_from_tag(&mut self, t: &Tag) {
@@ -62,14 +62,14 @@ impl Track {
       match b {
         Block::StreamInfo(si) => self.format.fill_with_flac(&si),
         Block::VorbisComment(vc) => self.fill_with_vorbis(&vc),
-        _ => (), // println!("Block: {:?}", b),
+        _ => (), // We'll just eat other blocks for now. println!("Block: {:?}", b),
       }
     }
 
     // Compute duration
     let mut ns = self.format.total_samples as f64 / self.format.sample_rate as f64;
-    ns = ns * billion as f64;
-    self.duration = Duration::nanoseconds(ns as i64);
+    ns = ns * BILLION as f64;
+    self.duration = Duration::from_nanos(ns as u64);
   }
 
   fn fill_with_vorbis(&mut self, vc: &metaflac::block::VorbisComment) {

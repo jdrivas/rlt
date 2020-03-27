@@ -77,6 +77,10 @@ enum InteractiveCommands {
   /// List files
   #[structopt(name = "list")]
   List(ListCmd),
+
+  /// Change working directory
+  #[structopt(name = "cd")]
+  CD(CDCmd),
   // Make an http call.
   // HTTP(HTTPCmd),
 }
@@ -84,6 +88,11 @@ enum InteractiveCommands {
 #[derive(StructOpt, Debug)]
 struct ListCmd {
   file_name: Vec<String>,
+}
+
+#[derive(StructOpt, Debug)]
+struct CDCmd {
+  path: Vec<String>,
 }
 
 // #[derive(StructOpt, Debug)]
@@ -122,11 +131,17 @@ fn parse_app(opt: AppCmds) -> Result<ParseResult> {
   }
 }
 
+// Command implementation
 fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult> {
   match cmd {
     InteractiveCommands::List(d) => {
       display::list_files(d.file_name.join(" "))?;
-      // track::display_blocks(track::read_blocks(".".to_string()));
+      Ok(ParseResult::Complete)
+    }
+    InteractiveCommands::CD(c) => {
+      let dir = c.path.join(" ");
+      println!("cd: {}", dir);
+      env::set_current_dir(dir)?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Quit => Ok(ParseResult::Exit),

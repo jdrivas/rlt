@@ -1,11 +1,11 @@
-extern crate chrono;
-use prettytable::{format, Cell, Row, Table};
+// extern crate chrono;
+use prettytable::{format, Table};
 use std::env;
 // use std::fs;
 use crate::track;
-use chrono::Duration;
 use std::io;
 use std::path;
+use std::time::Duration;
 
 /// lists files and audio files separately dispaying
 /// metadata of the audio file if found.
@@ -33,7 +33,7 @@ pub fn list_files(fname: String) -> io::Result<()> {
 
   if files.len() > 0 {
     for f in files {
-      println!("{:?}", f.as_path());
+      println!("{}", path_file_name(&f));
     }
   }
 
@@ -41,20 +41,13 @@ pub fn list_files(fname: String) -> io::Result<()> {
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_CLEAN);
 
-    println!("Audio Tracks:");
+    // println!("Audio Tracks:");
+    println!("");
     table.add_row(row![
       "Path", "Track", "Artist", "Album", "Title", "Rate", "Depth", "Duration"
     ]);
     for t in tracks {
-      let pn;
-      if let Some(p) = t.path.as_path().file_name() {
-        pn = p.to_string_lossy().into_owned();
-      } else {
-        pn = "".to_string();
-      }
-      // if let Some(p) = t.path.as_path().file_name() {
-      //   pn = p.to_str();
-      // }
+      let pn = path_file_name(&t.path);
       table.add_row(row![
         pn,
         format!("{} of {}", t.track_number, t.total_tracks),
@@ -74,6 +67,18 @@ pub fn list_files(fname: String) -> io::Result<()> {
 }
 
 fn format_duration(d: &Duration) -> String {
-  let s = d.num_seconds() - 60 * d.num_minutes();
-  return format!("{:2}:{:02}", d.num_minutes(), s);
+  let m = d.as_secs() / 60;
+  let s = d.as_secs() - 60 * m;
+  return format!("{:2}:{:02}", m, s);
+}
+
+// Deal with the gymnastics of getting the file
+// name out of the path.
+fn path_file_name(p: &path::PathBuf) -> String {
+  let pn;
+  match p.as_path().file_name() {
+    Some(f) => pn = f,
+    None => pn = p.as_path().as_os_str(),
+  }
+  return pn.to_string_lossy().into_owned();
 }
