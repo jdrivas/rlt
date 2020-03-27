@@ -2,7 +2,7 @@
 extern crate defer;
 
 use metaflac::{Block, Tag};
-// use std::collections::HashMap;
+use std::collections::HashMap;
 use std::io;
 use std::path;
 use std::time::Duration;
@@ -35,7 +35,7 @@ pub struct Track {
   pub track_number: u32,
   pub total_tracks: u32,
   pub duration: Duration,
-  // pub comments: HashMap<String, Vec<String>>,
+  pub comments: HashMap<String, Vec<String>>,
   pub format: SampleFormat,
 }
 
@@ -50,6 +50,7 @@ impl Default for Track {
       track_number: 0,
       total_tracks: 0,
       format: SampleFormat::default(),
+      comments: HashMap::new(),
     }
   }
 }
@@ -100,17 +101,16 @@ impl Track {
       }
     }
 
-    // self.comments = &vc.comments;
+    // copy the comments in.
+    // TODO: Is there a more efficient way to do this?
+    for (k, v) in &vc.comments {
+      self.comments.insert(k.clone(), v.clone());
+    }
   }
 }
 
-pub enum File {
-  Track(Track),
-  Path(path::PathBuf),
-}
-
 /// Read track(s) from a file or directory.
-pub fn files_from(p: path::PathBuf) -> io::Result<Vec<File>> {
+pub fn files_from(p: path::PathBuf) -> io::Result<(Vec<Track>, Vec<path::PathBuf>)> {
   // Get a list of paths we want to look at.
   let mut paths = Vec::new();
   if p.is_dir() {
@@ -127,10 +127,11 @@ pub fn files_from(p: path::PathBuf) -> io::Result<Vec<File>> {
 
   // Filter them into regular files and tracks and get data for the tracks.
   let mut files = Vec::new();
+  let mut tracks = Vec::new();
   for p in paths {
     if p.as_path().is_dir() {
       // Directories are not traversed, just listed.
-      files.push(File::Path(p));
+      files.push(p);
     } else {
       match Tag::read_from_path(&p) {
         Ok(t) => {
@@ -139,10 +140,10 @@ pub fn files_from(p: path::PathBuf) -> io::Result<Vec<File>> {
             ..Default::default()
           };
           tk.fill_from_tag(&t);
-          files.push(File::Track(tk));
+          tracks.push(tk);
         }
         Err(e) => match e.kind {
-          metaflac::ErrorKind::InvalidInput => files.push(File::Path(p)),
+          metaflac::ErrorKind::InvalidInput => files.push(p),
           metaflac::ErrorKind::Io(k) => return Err(k),
           _ => eprintln!("Metaflac Error: {}", e),
         },
@@ -150,5 +151,5 @@ pub fn files_from(p: path::PathBuf) -> io::Result<Vec<File>> {
     }
   }
 
-  Ok(files)
+  Ok((tracks, files))
 }

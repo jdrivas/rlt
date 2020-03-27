@@ -75,47 +75,22 @@ enum InteractiveCommands {
   Quit,
 
   /// List files
-  #[structopt(name = "list")]
-  List(ListCmd),
+  #[structopt(name = "list", alias = "ls")]
+  List(Path),
+
+  /// Details on a track
+  #[structopt(name = "describe")]
+  Describe(Path),
 
   /// Change working directory
   #[structopt(name = "cd")]
-  CD(CDCmd),
-  // Make an http call.
-  // HTTP(HTTPCmd),
+  CD(Path),
 }
 
 #[derive(StructOpt, Debug)]
-struct ListCmd {
-  file_name: Vec<String>,
-}
-
-#[derive(StructOpt, Debug)]
-struct CDCmd {
+struct Path {
   path: Vec<String>,
 }
-
-// #[derive(StructOpt, Debug)]
-// struct HTTPCmd {
-//   #[structopt(subcommand)]
-//   subcmd: HTTPVerb,
-// }
-
-// #[derive(StructOpt, Debug)]
-// enum HTTPVerb {
-//   /// Make an http get call.
-//   Get(HTTPArg),
-//   /// Make an http put call.
-//   Put(HTTPArg),
-// }
-
-// #[derive(StructOpt, Debug)]
-// struct HTTPArg {
-//   uri: String,
-//   content: Vec<String>,
-//   #[structopt(skip)]
-//   method: attohttpc::Method,
-// }
 
 // Parse and execute an AppCmds. This specifically sets up
 // the ability to run either a single command from InteractiveCmds
@@ -134,14 +109,18 @@ fn parse_app(opt: AppCmds) -> Result<ParseResult> {
 // Command implementation
 fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult> {
   match cmd {
-    InteractiveCommands::List(d) => {
-      display::list_files(d.file_name.join(" "))?;
+    InteractiveCommands::List(p) => {
+      display::list_files(p.path.join(" "))?;
       Ok(ParseResult::Complete)
     }
-    InteractiveCommands::CD(c) => {
-      let dir = c.path.join(" ");
+    InteractiveCommands::CD(p) => {
+      let dir = p.path.join(" ");
       println!("cd: {}", dir);
       env::set_current_dir(dir)?;
+      Ok(ParseResult::Complete)
+    }
+    InteractiveCommands::Describe(p) => {
+      display::describe_file(p.path.join(" "))?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Quit => Ok(ParseResult::Exit),

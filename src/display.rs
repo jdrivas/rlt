@@ -1,4 +1,5 @@
 // extern crate chrono;
+use format::consts::FORMAT_CLEAN;
 use prettytable::{format, Table};
 use std::env;
 // use std::fs;
@@ -18,18 +19,7 @@ pub fn list_files(fname: String) -> io::Result<()> {
     path = env::current_dir()?;
   }
 
-  // Separate into files and tracks for separate display.
-  // TODO(jdr); We do this twice, once in file_from
-  // and then here. Not really efficient.
-  let mut files = Vec::new();
-  let mut tracks = Vec::new();
-  let tks = track::files_from(path)?;
-  for t in tks {
-    match t {
-      track::File::Track(tk) => tracks.push(tk),
-      track::File::Path(p) => files.push(p),
-    }
-  }
+  let (tracks, files) = track::files_from(path)?;
 
   if files.len() > 0 {
     for f in files {
@@ -61,6 +51,41 @@ pub fn list_files(fname: String) -> io::Result<()> {
       ]);
     }
     table.printstd();
+  }
+
+  Ok(())
+}
+
+pub fn describe_file(fname: String) -> io::Result<()> {
+  let p = path::PathBuf::from(&fname);
+  if !p.as_path().is_file() {
+    return Err(io::Error::new(
+      io::ErrorKind::Other,
+      format!("{} is not a file.", p.as_path().display()),
+    ));
+  }
+
+  let (tracks, _) = track::files_from(p)?;
+  if tracks.len() > 0 {
+    for tk in tracks {
+      println!("{}", tk.path.as_path().display());
+      let mut table = Table::new();
+      table.set_format(*FORMAT_CLEAN);
+      table.add_row(row!["Key", "Value"]);
+      let mut vs: Vec<_> = tk.comments.iter().collect();
+      vs.sort();
+      for (k, v) in vs {
+        table.add_row(row![k, v[0]]);
+        let mut i = 1;
+        while i < v.len() {
+          i = i + 1;
+          table.add_row(row!["", v[i]]);
+        }
+      }
+      table.printstd();
+    }
+  } else {
+    println!("{}", fname);
   }
 
   Ok(())
