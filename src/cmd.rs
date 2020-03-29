@@ -1,11 +1,8 @@
-// extern crate attohttpc;
-extern crate chrono;
 extern crate clap;
 extern crate linefeed;
 extern crate structopt;
 
 use crate::display;
-// use crate::track;
 use clap::AppSettings;
 
 use chrono::Local;
@@ -31,7 +28,7 @@ pub fn run(c: Config) -> Result<()> {
       opt.history_path = c.history_path;
       parse_app(opt).map(|_a| ())? // Eat the return and publish ok.
     }
-    Err(e) => eprintln!("{}", e),
+    Err(e) => eprintln!("Top: {}", e),
   }
   Ok(())
 }
@@ -137,7 +134,6 @@ enum ParseResult {
 #[derive(Debug)]
 pub enum ParseError {
   Clap(clap::Error),
-  HTTP(attohttpc::Error),
   IO(std::io::Error),
 }
 
@@ -150,7 +146,6 @@ impl fmt::Display for ParseError {
         clap::ErrorKind::HelpDisplayed => write!(f, "{}", e.message),
         _ => write!(f, "Parse error => {}", e),
       },
-      ParseError::HTTP(e) => write!(f, "{}", e),
       ParseError::IO(e) => write!(f, "{}", e),
     }
   }
@@ -169,12 +164,6 @@ impl error::Error for ParseError {
 impl From<clap::Error> for ParseError {
   fn from(err: clap::Error) -> ParseError {
     ParseError::Clap(err)
-  }
-}
-
-impl From<attohttpc::Error> for ParseError {
-  fn from(err: attohttpc::Error) -> Self {
-    ParseError::HTTP(err)
   }
 }
 
@@ -215,14 +204,14 @@ fn readloop(history_path: Option<String>) -> Result<()> {
             Ok(ParseResult::Exit) => {
               history_path.as_ref().map(|path| {
                 if let Err(e) = rl.save_history(&path) {
-                  eprintln!("Failed to save history file: {:} - {}", path, e);
+                  eprintln!("Failed to save history file: {:?} - {}", path, e);
                 }
               });
               break;
             }
-            Err(e) => eprintln!("{}", e),
+            Err(e) => eprintln!("RL-PI: {}", e),
           },
-          Err(e) => eprintln!("{}", e),
+          Err(e) => eprintln!("RL - match: {}", e),
         }
       }
       // Check for a prompt update.

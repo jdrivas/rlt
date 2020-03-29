@@ -1,6 +1,3 @@
-// extern crate chrono;
-extern crate defer;
-
 use metaflac::{Block, Tag};
 use std::collections::HashMap;
 use std::io;
@@ -145,7 +142,7 @@ pub fn files_from(p: path::PathBuf) -> io::Result<(Vec<Track>, Vec<path::PathBuf
         Err(e) => match e.kind {
           metaflac::ErrorKind::InvalidInput => files.push(p),
           metaflac::ErrorKind::Io(k) => return Err(k),
-          _ => eprintln!("Metaflac Error: {}", e),
+          _ => eprintln!("Metaflac Error: {}", e), //TODO: Push this up.
         },
       }
     }

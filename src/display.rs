@@ -1,9 +1,11 @@
 // extern crate chrono;
-use format::consts::FORMAT_CLEAN;
-use prettytable::{format, Table};
-use std::env;
-// use std::fs;
+extern crate num_format;
 use crate::track;
+use format::consts::FORMAT_CLEAN;
+use num_format::{Locale, ToFormattedString};
+use prettytable::{format, Table};
+
+use std::env;
 use std::io;
 use std::path;
 use std::time::Duration;
@@ -44,10 +46,10 @@ pub fn list_files(fname: String) -> io::Result<()> {
         t.artist,
         t.album,
         t.title,
-        t.format.sample_rate.to_string(),
+        t.format.sample_rate.to_formatted_string(&Locale::en),
         t.format.bits_per_sample.to_string(),
         // format_duration(&t.duration()),
-        format_duration(&t.duration),
+        format_duration(&t.duration, true),
       ]);
     }
     table.printstd();
@@ -57,6 +59,7 @@ pub fn list_files(fname: String) -> io::Result<()> {
 }
 
 pub fn describe_file(fname: String) -> io::Result<()> {
+  // Only do a single file at a time.
   let p = path::PathBuf::from(&fname);
   if !p.as_path().is_file() {
     return Err(io::Error::new(
@@ -65,11 +68,55 @@ pub fn describe_file(fname: String) -> io::Result<()> {
     ));
   }
 
+  let mut table; // We'll be reusing this below for formating output.
   let (tracks, _) = track::files_from(p)?;
   if tracks.len() > 0 {
+    // this is overkill as we sould only get one file back.
     for tk in tracks {
-      println!("{}", tk.path.as_path().display());
-      let mut table = Table::new();
+      // Print track details
+      let fsize;
+      if let Ok(md) = tk.path.as_path().metadata() {
+        fsize = md.len();
+      } else {
+        fsize = 0;
+      }
+      println!("Track Details");
+      struct Te<'a>(&'a str, String);
+      let ts = [
+        Te("File", path_file_name(&tk.path)),
+        Te("Artist", tk.artist),
+        Te("Album", tk.album),
+        Te("Title", tk.title),
+        Te(
+          "Sample Rate",
+          tk.format.sample_rate.to_formatted_string(&Locale::en),
+        ),
+        Te(
+          "Sample Size",
+          format!("{} bits", tk.format.bits_per_sample.to_string()),
+        ),
+        Te(
+          "Samples",
+          tk.format.total_samples.to_formatted_string(&Locale::en),
+        ),
+        Te(
+          "Channels",
+          tk.format.channels.to_formatted_string(&Locale::en),
+        ),
+        Te("Duration", format_duration(&tk.duration, false)),
+        Te("Size", fsize.to_formatted_string(&Locale::en)),
+      ];
+      table = Table::new();
+      table.set_format(*FORMAT_CLEAN);
+      for t in &ts {
+        table.add_row(row![t.0, t.1]);
+      }
+      table.printstd();
+      println!();
+
+      // Print Comments
+      println!("Metadata");
+      table = Table::new();
       table.set_format(*FORMAT_CLEAN);
       table.add_row(row!["Key", "Value"]);
       let mut vs: Vec<_> = tk.comments.iter().collect();
@@ -91,10 +138,14 @@ pub fn describe_file(fname: String) -> io::Result<()> {
   Ok(())
 }
 
-fn format_duration(d: &Duration) -> String {
+fn format_duration(d: &Duration, col: bool) -> String {
   let m = d.as_secs() / 60;
   let s = d.as_secs() - 60 * m;
-  return format!("{:2}:{:02}", m, s);
+  if col {
+    return format!("{:2}:{:02}", m, s);
+  } else {
+    return format!("{}:{:02}", m, s);
+  }
 }
 
 // Deal with the gymnastics of getting the file
