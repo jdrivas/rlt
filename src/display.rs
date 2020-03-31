@@ -1,5 +1,6 @@
 // extern crate chrono;
 extern crate num_format;
+use crate::album;
 use crate::track;
 use format::consts::FORMAT_CLEAN;
 use num_format::{Locale, ToFormattedString};
@@ -13,46 +14,40 @@ use std::time::Duration;
 /// lists files and audio files separately dispaying
 /// metadata of the audio file if found.
 pub fn list_files(fname: String) -> io::Result<()> {
-  let path;
+  let p = dir_or_cwd(fname)?;
 
-  if fname.len() > 0 {
-    path = path::PathBuf::from(fname);
-  } else {
-    path = env::current_dir()?;
-  }
+  let (albums, files) = album::albums_from(p)?;
 
-  let (tracks, files) = track::files_from(path)?;
-
+  // let (tracks, files) = track::files_from(path)?;
   if files.len() > 0 {
     for f in files {
       println!("{}", path_file_name(&f));
     }
   }
 
-  if tracks.len() > 0 {
-    let mut table = Table::new();
-    table.set_format(*format::consts::FORMAT_CLEAN);
+  for a in albums {
+    if a.tracks.len() > 0 {
+      println!("");
+      println!("Album: {}", a.title);
+      println!("Artist: {}", a.artist);
+      println!("Tracks:");
 
-    // println!("Audio Tracks:");
-    println!("");
-    table.add_row(row![
-      "Path", "Track", "Artist", "Album", "Title", "Rate", "Depth", "Duration"
-    ]);
-    for t in tracks {
-      let pn = path_file_name(&t.path);
-      table.add_row(row![
-        pn,
-        format!("{} of {}", t.track_number, t.total_tracks),
-        t.artist,
-        t.album,
-        t.title,
-        t.format.sample_rate.to_formatted_string(&Locale::en),
-        t.format.bits_per_sample.to_string(),
-        // format_duration(&t.duration()),
-        format_duration(&t.duration, true),
-      ]);
+      let mut table = Table::new();
+      table.set_format(*format::consts::FORMAT_CLEAN);
+      table.add_row(row!["Track", "Title", "Duration", "Rate", "Depth", "Path"]);
+      for t in a.tracks {
+        let pn = path_file_name(&t.path);
+        table.add_row(row![
+          format!("{:2} of {:2}", t.track_number, t.total_tracks),
+          t.title,
+          format_duration(&t.duration, true),
+          format!("{} KHz", (t.format.sample_rate as f64 / 1000.0)),
+          format!("{} bits", t.format.bits_per_sample.to_string()),
+          pn,
+        ]);
+      }
+      table.printstd();
     }
-    table.printstd();
   }
 
   Ok(())
@@ -146,6 +141,14 @@ fn format_duration(d: &Duration, col: bool) -> String {
   } else {
     return format!("{}:{:02}", m, s);
   }
+}
+
+fn dir_or_cwd(n: String) -> io::Result<path::PathBuf> {
+  let p = path::PathBuf::from(n);
+  if p.is_dir() {
+    return Ok(p);
+  }
+  return env::current_dir();
 }
 
 // Deal with the gymnastics of getting the file

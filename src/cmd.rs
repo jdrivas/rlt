@@ -8,6 +8,7 @@ use clap::AppSettings;
 use chrono::Local;
 use linefeed::{Interface, ReadResult};
 use std::env;
+use std::path;
 use std::sync::{mpsc, Arc};
 use std::thread;
 
@@ -49,7 +50,7 @@ struct AppCmds {
 
 #[derive(StructOpt, Debug)]
 enum RootSubcommand {
-  Interactive,
+  Interactive(Path),
   #[structopt(flatten)]
   InteractiveSubCommand(InteractiveCommands),
 }
@@ -95,7 +96,15 @@ struct Path {
 // for commands from InteractiveCommands.
 fn parse_app(opt: AppCmds) -> Result<ParseResult> {
   match opt.subcmd {
-    RootSubcommand::Interactive => {
+    RootSubcommand::Interactive(p) => {
+      // If a directory is given, CD to it.
+      // TODO: if a file is given, cd to the directory of the file?
+      let dir = p.path.join(" ");
+      if dir != "" {
+        if let Err(e) = env::set_current_dir(&dir) {
+          eprintln!("Can't CD to {}: {}", dir, e);
+        }
+      }
       readloop(opt.history_path)?;
       Ok(ParseResult::Exit)
     }
@@ -108,6 +117,7 @@ fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult> {
   match cmd {
     InteractiveCommands::List(p) => {
       display::list_files(p.path.join(" "))?;
+      // display::list_albums(p.path.join(" "))?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::CD(p) => {
@@ -175,6 +185,9 @@ impl From<std::io::Error> for ParseError {
 
 // Interactive readloop functionality for ICmds.
 // This supports an asynchronous prompt update capability.
+
+// TODO: Need to automatically udpate
+// based on current directory.
 fn readloop(history_path: Option<String>) -> Result<()> {
   //
   // Prompt & Readline loop.
@@ -253,11 +266,14 @@ fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
     let mut i = 0;
     loop {
       thread::sleep(Duration::from_millis(1000));
+      let cd;
+      if let Ok(p) = env::current_dir() {
+        cd = p.as_path().to_owned()
+      } else {
+        cd = path::Path::new("Unknown").to_owned();
+      }
       if let Err(e) = tx.send(PromptUpdate {
-        new_prompt: String::from(format!(
-          "cli <{}> ",
-          Local::now().format(TIME_FMT).to_string()
-        )),
+        new_prompt: String::from(format!("cli <{}> ", cd.display())),
       }) {
         eprintln!("Failed to send a new prompt: {:?}", e)
       }
