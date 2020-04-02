@@ -2,21 +2,23 @@ extern crate chrono;
 use crate::track;
 // use chrono::DateTime;
 // use chrono::offset::TimeZone;
-use std::collections::hash_map::Values;
-use std::collections::HashMap;
+// use std::collections::hash_map::Values;
+// use std::collections::HashMap;
 use std::io;
 use std::path;
 
 #[derive(Debug)]
 pub struct Album {
     pub tracks: Vec<track::Track>,
-    pub title: String,
-    pub artist: String,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub disk_total: Option<u32>,
     // release: Option<DateTime<dyn TimeZone>>,
 }
 
 // TODO(jdr): Learn to use lifetimes and get rid of these tk.* clones?
-pub fn albums_from(p: path::PathBuf) -> io::Result<(Vec<Album>, Vec<path::PathBuf>)> {
+// Assume that there is only one album in a directory.
+pub fn albums_from(p: path::PathBuf) -> io::Result<(Album, Vec<path::PathBuf>)> {
     if !p.is_dir() {
         return Err(io::Error::new(
             io::ErrorKind::Other,
@@ -24,28 +26,26 @@ pub fn albums_from(p: path::PathBuf) -> io::Result<(Vec<Album>, Vec<path::PathBu
         ));
     }
 
-    let mut albums: HashMap<String, Album> = HashMap::new();
+    let mut album = Album {
+        tracks: Vec::new(),
+        title: None,
+        artist: None,
+        disk_total: None,
+    };
     let (tracks, files) = track::files_from(p)?;
     for tk in tracks {
-        let an = tk.album.clone();
-        if let Some(album) = albums.get_mut(&an) {
-            album.tracks.push(tk);
-        } else {
-            let mut album = Album {
-                tracks: Vec::new(),
-                title: an.clone(),
-                artist: tk.artist.clone(),
-                // release: std::option::Option::None,
-            };
-            album.tracks.push(tk);
-            albums.insert(an.clone(), album);
-        }
+        album.tracks.push(tk);
     }
 
-    // Move everything to a vector and return.
-    let mut res: Vec<Album> = Vec::new();
-    for (_, v) in albums.drain() {
-        res.push(v);
+    // TODO(jdr): I've never really been satisfied with the is
+    // take the first one you find choice.
+    // These might just as well be functions since they are referencing
+    // internal values.
+    if album.tracks.len() > 0 {
+        album.title = album.tracks[0].album.clone();
+        album.artist = album.tracks[0].artist.clone();
+        album.disk_total = album.tracks[0].disk_total;
     }
-    return Ok((res, files));
+
+    return Ok((album, files));
 }

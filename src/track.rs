@@ -11,6 +11,7 @@ pub struct SampleFormat {
   pub channels: u8,
   pub bits_per_sample: u8,
   pub total_samples: u64,
+  pub duration: Duration,
 }
 
 impl SampleFormat {
@@ -26,12 +27,13 @@ impl SampleFormat {
 #[derive(Debug)]
 pub struct Track {
   pub path: path::PathBuf,
-  pub title: String,
-  pub artist: String,
-  pub album: String,
-  pub track_number: u32,
-  pub total_tracks: u32,
-  pub duration: Duration,
+  pub title: Option<String>,
+  pub artist: Option<String>,
+  pub album: Option<String>,
+  pub track_number: Option<u32>,
+  pub total_tracks: Option<u32>,
+  pub disk_number: Option<u32>,
+  pub disk_total: Option<u32>,
   pub comments: HashMap<String, Vec<String>>,
   pub format: SampleFormat,
 }
@@ -39,13 +41,14 @@ pub struct Track {
 impl Default for Track {
   fn default() -> Self {
     Track {
-      duration: Duration::from_secs(0),
       path: path::PathBuf::default(),
-      title: String::default(),
-      artist: String::default(),
-      album: String::default(),
-      track_number: 0,
-      total_tracks: 0,
+      title: None,
+      artist: None,
+      album: None,
+      track_number: None,
+      total_tracks: None,
+      disk_number: None,
+      disk_total: None,
       format: SampleFormat::default(),
       comments: HashMap::new(),
     }
@@ -53,6 +56,14 @@ impl Default for Track {
 }
 
 const BILLION: u64 = 1_000_000_000;
+
+const DISCTOTAL: &str = "DISCTOTAL";
+const DISCNUMBER: &str = "DISCNUMBER";
+const RELEASEDATE: &str = "RELEASE_DATE";
+const VENDOR: &str = "VENDOR";
+
+const EMPTY_VALUE: &str = "<EMPTY>";
+const EMPTY_SMALL: &str = "-";
 
 impl Track {
   fn fill_from_tag(&mut self, t: &Tag) {
@@ -67,7 +78,7 @@ impl Track {
     // Compute duration
     let mut ns = self.format.total_samples as f64 / self.format.sample_rate as f64;
     ns = ns * BILLION as f64;
-    self.duration = Duration::from_nanos(ns as u64);
+    self.format.duration = Duration::from_nanos(ns as u64);
   }
 
   fn fill_with_vorbis(&mut self, vc: &metaflac::block::VorbisComment) {
@@ -75,26 +86,21 @@ impl Track {
     // tuples of vc.title and self.title and
     // run them in a loop to do this.
     if let Some(ts) = vc.title() {
-      self.title = ts.join("/");
+      self.title = Some(ts.join("/")); // TODO: Is this what we want from the vector result?
     }
 
-    if let Some(tn) = vc.track() {
-      self.track_number = tn;
-    }
-
-    if let Some(tt) = vc.total_tracks() {
-      self.total_tracks = tt;
-    }
+    self.track_number = vc.track();
+    self.total_tracks = vc.total_tracks();
 
     if let Some(a) = vc.album() {
-      self.album = a.join("/");
+      self.album = Some(a.join("/"));
     }
 
     if let Some(a) = vc.artist() {
-      self.artist = a.join("/");
+      self.artist = Some(a.join("/"));
     } else {
       if let Some(a) = vc.album_artist() {
-        self.artist = a.join("/");
+        self.artist = Some(a.join("/"));
       }
     }
 
@@ -102,6 +108,31 @@ impl Track {
     // TODO: Is there a more efficient way to do this?
     for (k, v) in &vc.comments {
       self.comments.insert(k.clone(), v.clone());
+    }
+
+    // Now fill from comments.
+    if let Some(dt) = self.comments.get(DISCTOTAL) {
+      if let Ok(d_total) = dt[0].parse::<u32>() {
+        self.disk_total = Some(d_total);
+      }
+    }
+    if let Some(dn) = self.comments.get(DISCNUMBER) {
+      if let Ok(d_num) = dn[0].parse::<u32>() {
+        self.disk_number = Some(d_num);
+      }
+    }
+  }
+
+  pub fn tracks_display(&self) -> String {
+    match self.total_tracks {
+      Some(tt) => match self.track_number {
+        Some(tn) => format!("{:2} of {:02}", tn, tt),
+        None => format!("{:2}", tt),
+      },
+      None => match self.track_number {
+        Some(tn) => format!("{:2}", tn),
+        None => EMPTY_SMALL.to_string(),
+      },
     }
   }
 }
@@ -147,6 +178,12 @@ pub fn files_from(p: path::PathBuf) -> io::Result<(Vec<Track>, Vec<path::PathBuf
       }
     }
   }
+
+  tracks.sort_by(|a, b| {
+    a.disk_number
+      .cmp(&b.disk_number)
+      .then(a.track_number.cmp(&b.track_number))
+  });
 
   Ok((tracks, files))
 }

@@ -11,42 +11,68 @@ use std::io;
 use std::path;
 use std::time::Duration;
 
+const NONE_SHORT: &str = "-";
+
 /// lists files and audio files separately dispaying
 /// metadata of the audio file if found.
 pub fn list_files(fname: String) -> io::Result<()> {
   let p = dir_or_cwd(fname)?;
 
-  let (albums, files) = album::albums_from(p)?;
+  let (album, files) = album::albums_from(p)?;
+  if album.tracks.len() > 0 {
+    // Display album information
+    println!("");
+    println!("Album: {}", album.title.unwrap_or(NONE_SHORT.to_string()));
+    println!("Artist: {}", album.artist.unwrap_or(NONE_SHORT.to_string()));
+    if album.disk_total.unwrap_or(0) > 0 {
+      println!(
+        "Disks: {}",
+        album
+          .disk_total
+          .map_or(NONE_SHORT.to_string(), |v| v.to_string())
+      );
+    }
+    println!("Total Tracks: {}", album.tracks.len());
+    println!("Tracks:");
+
+    // Display track information
+    let mut table = Table::new();
+    table.set_format(*format::consts::FORMAT_CLEAN);
+
+    // Most cases we have no disc numbers so add the track header now
+    if album.tracks[0].disk_number.is_none() {
+      table.add_row(row!["Track", "Title", "Duration", "Rate", "Depth", "File"]);
+    }
+    let mut ld = None;
+    for t in album.tracks {
+      // Handle disc numbers and the track header wtih them.
+      let cd = t.disk_number;
+      if ld != cd {
+        ld = cd;
+        if cd.is_some() {
+          table.add_row(row![format!("Disk: {}", cd.unwrap())]);
+          table.add_row(row!["Track", "Title", "Duration", "Rate", "Depth", "Path"]);
+        }
+      }
+      // display track data.
+      let pn = path_file_name(&t.path);
+      table.add_row(row![
+        t.tracks_display(),
+        t.title.unwrap_or(NONE_SHORT.to_string()),
+        format_duration(&t.format.duration, true),
+        format!("{} KHz", (t.format.sample_rate as f64 / 1000.0)),
+        format!("{} bits", t.format.bits_per_sample.to_string()),
+        pn,
+      ]);
+    }
+    table.printstd();
+  }
 
   // let (tracks, files) = track::files_from(path)?;
+  println!("\nFiles:");
   if files.len() > 0 {
     for f in files {
       println!("{}", path_file_name(&f));
-    }
-  }
-
-  for a in albums {
-    if a.tracks.len() > 0 {
-      println!("");
-      println!("Album: {}", a.title);
-      println!("Artist: {}", a.artist);
-      println!("Tracks:");
-
-      let mut table = Table::new();
-      table.set_format(*format::consts::FORMAT_CLEAN);
-      table.add_row(row!["Track", "Title", "Duration", "Rate", "Depth", "Path"]);
-      for t in a.tracks {
-        let pn = path_file_name(&t.path);
-        table.add_row(row![
-          format!("{:2} of {:2}", t.track_number, t.total_tracks),
-          t.title,
-          format_duration(&t.duration, true),
-          format!("{} KHz", (t.format.sample_rate as f64 / 1000.0)),
-          format!("{} bits", t.format.bits_per_sample.to_string()),
-          pn,
-        ]);
-      }
-      table.printstd();
     }
   }
 
@@ -79,12 +105,35 @@ pub fn describe_file(fname: String) -> io::Result<()> {
       struct Te<'a>(&'a str, String);
       let ts = [
         Te("File", path_file_name(&tk.path)),
-        Te("Artist", tk.artist),
-        Te("Album", tk.album),
-        Te("Title", tk.title),
+        Te("Artist", tk.artist.unwrap_or(NONE_SHORT.to_string())),
+        Te("Album", tk.album.unwrap_or(NONE_SHORT.to_string())),
+        Te("Title", tk.title.unwrap_or(NONE_SHORT.to_string())),
+        Te(
+          "Track",
+          tk.track_number
+            .map_or(NONE_SHORT.to_string(), |tn| tn.to_string()),
+        ),
+        Te(
+          "Total Tracks",
+          tk.total_tracks
+            .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
+        ),
+        Te(
+          "Disk Number",
+          tk.disk_number
+            .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
+        ),
+        Te(
+          "Disk Total",
+          tk.disk_total
+            .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
+        ),
         Te(
           "Sample Rate",
-          tk.format.sample_rate.to_formatted_string(&Locale::en),
+          format!(
+            "{} bits",
+            tk.format.sample_rate.to_formatted_string(&Locale::en)
+          ),
         ),
         Te(
           "Sample Size",
@@ -98,8 +147,11 @@ pub fn describe_file(fname: String) -> io::Result<()> {
           "Channels",
           tk.format.channels.to_formatted_string(&Locale::en),
         ),
-        Te("Duration", format_duration(&tk.duration, false)),
-        Te("Size", fsize.to_formatted_string(&Locale::en)),
+        Te("Duration", format_duration(&tk.format.duration, false)),
+        Te(
+          "Size",
+          format!("{} bytes", fsize.to_formatted_string(&Locale::en)),
+        ),
       ];
       table = Table::new();
       table.set_format(*FORMAT_CLEAN);

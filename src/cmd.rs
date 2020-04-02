@@ -5,7 +5,7 @@ extern crate structopt;
 use crate::display;
 use clap::AppSettings;
 
-use chrono::Local;
+// use chrono::Local;
 use linefeed::{Interface, ReadResult};
 use std::env;
 use std::path;
@@ -260,7 +260,7 @@ struct PromptUpdate {
   new_prompt: String,
 }
 
-const TIME_FMT: &str = "%a %b %e %Y %T";
+// const TIME_FMT: &str = "%a %b %e %Y %T";
 fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
   thread::spawn(move || {
     let mut i = 0;
