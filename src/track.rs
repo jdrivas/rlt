@@ -1,6 +1,12 @@
-use metaflac::{Block, Tag};
+use crate::flac::Flac;
+use crate::id3::Id3;
+use crate::wav::Wav;
+// use id3::Tag as ID3Tag;
 use std::collections::HashMap;
-use std::io;
+use std::error::Error;
+use std::fs::File;
+// use std::io::SeekFrom;
+use std::io::{Read, Seek};
 use std::path;
 use std::time::Duration;
 use std::vec::Vec;
@@ -9,17 +15,18 @@ use std::vec::Vec;
 pub struct SampleFormat {
   pub sample_rate: u32, // Hertz
   pub channels: u8,
-  pub bits_per_sample: u8,
+  pub bits_per_sample: u16,
   pub total_samples: u64,
   pub duration: Duration,
 }
 
+const BILLION: u64 = 1_000_000_000;
 impl SampleFormat {
-  fn fill_with_flac(&mut self, si: &metaflac::block::StreamInfo) {
-    self.sample_rate = si.sample_rate;
-    self.channels = si.num_channels;
-    self.bits_per_sample = si.bits_per_sample;
-    self.total_samples = si.total_samples;
+  pub fn duration(&self) -> Duration {
+    // Compute duration
+    let mut ns = self.total_samples as f64 / self.sample_rate as f64;
+    ns = ns * BILLION as f64;
+    return Duration::from_nanos(ns as u64);
   }
 }
 
@@ -31,7 +38,7 @@ pub struct Track {
   pub artist: Option<String>,
   pub album: Option<String>,
   pub track_number: Option<u32>,
-  pub total_tracks: Option<u32>,
+  pub track_total: Option<u32>,
   pub disk_number: Option<u32>,
   pub disk_total: Option<u32>,
   pub comments: HashMap<String, Vec<String>>,
@@ -46,7 +53,7 @@ impl Default for Track {
       artist: None,
       album: None,
       track_number: None,
-      total_tracks: None,
+      track_total: None,
       disk_number: None,
       disk_total: None,
       format: SampleFormat::default(),
@@ -55,76 +62,12 @@ impl Default for Track {
   }
 }
 
-const BILLION: u64 = 1_000_000_000;
-
-const DISCTOTAL: &str = "DISCTOTAL";
-const DISCNUMBER: &str = "DISCNUMBER";
-const RELEASEDATE: &str = "RELEASE_DATE";
-const VENDOR: &str = "VENDOR";
-
-const EMPTY_VALUE: &str = "<EMPTY>";
+// const EMPTY_VALUE: &str = "<EMPTY>";
 const EMPTY_SMALL: &str = "-";
 
 impl Track {
-  fn fill_from_tag(&mut self, t: &Tag) {
-    for b in t.blocks() {
-      match b {
-        Block::StreamInfo(si) => self.format.fill_with_flac(&si),
-        Block::VorbisComment(vc) => self.fill_with_vorbis(&vc),
-        _ => (), // We'll just eat other blocks for now. println!("Block: {:?}", b),
-      }
-    }
-
-    // Compute duration
-    let mut ns = self.format.total_samples as f64 / self.format.sample_rate as f64;
-    ns = ns * BILLION as f64;
-    self.format.duration = Duration::from_nanos(ns as u64);
-  }
-
-  fn fill_with_vorbis(&mut self, vc: &metaflac::block::VorbisComment) {
-    // there really must be a way to collect
-    // tuples of vc.title and self.title and
-    // run them in a loop to do this.
-    if let Some(ts) = vc.title() {
-      self.title = Some(ts.join("/")); // TODO: Is this what we want from the vector result?
-    }
-
-    self.track_number = vc.track();
-    self.total_tracks = vc.total_tracks();
-
-    if let Some(a) = vc.album() {
-      self.album = Some(a.join("/"));
-    }
-
-    if let Some(a) = vc.artist() {
-      self.artist = Some(a.join("/"));
-    } else {
-      if let Some(a) = vc.album_artist() {
-        self.artist = Some(a.join("/"));
-      }
-    }
-
-    // copy the comments in.
-    // TODO: Is there a more efficient way to do this?
-    for (k, v) in &vc.comments {
-      self.comments.insert(k.clone(), v.clone());
-    }
-
-    // Now fill from comments.
-    if let Some(dt) = self.comments.get(DISCTOTAL) {
-      if let Ok(d_total) = dt[0].parse::<u32>() {
-        self.disk_total = Some(d_total);
-      }
-    }
-    if let Some(dn) = self.comments.get(DISCNUMBER) {
-      if let Ok(d_num) = dn[0].parse::<u32>() {
-        self.disk_number = Some(d_num);
-      }
-    }
-  }
-
   pub fn tracks_display(&self) -> String {
-    match self.total_tracks {
+    match self.track_total {
       Some(tt) => match self.track_number {
         Some(tn) => format!("{:2} of {:02}", tn, tt),
         None => format!("{:2}", tt),
@@ -136,9 +79,10 @@ impl Track {
     }
   }
 }
-
 /// Read track(s) from a file or directory.
-pub fn files_from(p: path::PathBuf) -> io::Result<(Vec<Track>, Vec<path::PathBuf>)> {
+pub fn files_from(
+  p: path::PathBuf,
+) -> std::result::Result<(Vec<Track>, Vec<path::PathBuf>), Box<dyn Error>> {
   // Get a list of paths we want to look at.
   let mut paths = Vec::new();
   if p.is_dir() {
@@ -153,7 +97,7 @@ pub fn files_from(p: path::PathBuf) -> io::Result<(Vec<Track>, Vec<path::PathBuf
     }
   }
 
-  // Filter them into regular files and tracks and get data for the tracks.
+  // Filter them into regular files and tracks getting data for the tracks.
   let mut files = Vec::new();
   let mut tracks = Vec::new();
   for p in paths {
@@ -161,20 +105,21 @@ pub fn files_from(p: path::PathBuf) -> io::Result<(Vec<Track>, Vec<path::PathBuf
       // Directories are not traversed, just listed.
       files.push(p);
     } else {
-      match Tag::read_from_path(&p) {
-        Ok(t) => {
-          let mut tk = Track {
-            path: p,
-            ..Default::default()
-          };
-          tk.fill_from_tag(&t);
+      match get_track(&p)? {
+        Some(mut tk) => {
+          // Some format don't provide track titles.
+          // Let's use the file name if they don't.
+          if tk.title.is_none() {
+            let f_n = match p.as_path().file_name() {
+              Some(s) => s.to_string_lossy().into_owned(),
+              None => tk.path.as_path().to_string_lossy().into_owned(),
+            };
+            tk.title = Some(f_n);
+          }
+          tk.path = p;
           tracks.push(tk);
         }
-        Err(e) => match e.kind {
-          metaflac::ErrorKind::InvalidInput => files.push(p),
-          metaflac::ErrorKind::Io(k) => return Err(k),
-          _ => eprintln!("Metaflac Error: {}", e), //TODO: Push this up.
-        },
+        None => files.push(p),
       }
     }
   }
@@ -186,4 +131,31 @@ pub fn files_from(p: path::PathBuf) -> io::Result<(Vec<Track>, Vec<path::PathBuf
   });
 
   Ok((tracks, files))
+}
+
+pub trait Decoder {
+  fn is_candidate<R: Read + Seek>(r: R) -> Result<bool, Box<dyn Error>>;
+  fn get_track<R: Read + Seek>(r: R) -> Result<Option<Track>, Box<dyn Error>>;
+}
+
+pub fn get_track(p: &path::PathBuf) -> Result<Option<Track>, Box<dyn Error>> {
+  // TODO(jdr): I just gotta believe there is a better way.
+  // Would really like to get these into one structure rather than two.
+  // An array of tuples (Flac::is_canddiate, Flac::get_track) the compiler discovers
+  // as type of the first specific decoder object (e.g. flac::Flac), really as you'd expect
+  // because those are different real objects.
+  // Not sure how to define a struct to take one of these as there are no real objects.
+  // Also - it would be good to just read these in somehow, though dynamic libraries
+  // in a well known place seems about too clever by 1/2.
+  let candidates = [Flac::is_candidate, Wav::is_candidate, Id3::is_candidate];
+  let gets = [Flac::get_track, Wav::get_track, Id3::get_track];
+
+  let f = File::open(&p)?;
+  for i in 0..candidates.len() {
+    if candidates[i](&f)? {
+      return Ok(gets[i](&f)?);
+    }
+  }
+
+  return Ok(None);
 }

@@ -7,6 +7,7 @@ use num_format::{Locale, ToFormattedString};
 use prettytable::{format, Table};
 
 use std::env;
+use std::error::Error;
 use std::io;
 use std::path;
 use std::time::Duration;
@@ -15,10 +16,22 @@ const NONE_SHORT: &str = "-";
 
 /// lists files and audio files separately dispaying
 /// metadata of the audio file if found.
-pub fn list_files(fname: String) -> io::Result<()> {
-  let p = dir_or_cwd(fname)?;
+pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
+  let mut p = path::PathBuf::from(fname);
 
-  let (album, files) = album::albums_from(p)?;
+  let album;
+  let files;
+  if p.is_file() {
+    let (tracks, f) = track::files_from(p)?;
+    album = album::album_from_tracks(tracks);
+    files = f;
+  } else {
+    p = dir_or_cwd(p)?;
+    let (a, f) = album::album_from_path(p)?;
+    album = a;
+    files = f;
+  }
+
   if album.tracks.len() > 0 {
     // Display album information
     println!("");
@@ -32,14 +45,19 @@ pub fn list_files(fname: String) -> io::Result<()> {
           .map_or(NONE_SHORT.to_string(), |v| v.to_string())
       );
     }
-    println!("Total Tracks: {}", album.tracks.len());
-    println!("Tracks:");
+    println!(
+      "Total Tracks: {}",
+      album
+        .track_total
+        .map_or(NONE_SHORT.to_string(), |v| v.to_string())
+    );
 
     // Display track information
     let mut table = Table::new();
     table.set_format(*format::consts::FORMAT_CLEAN);
 
     // Most cases we have no disc numbers so add the track header now
+    // TODO(jdr): Checking the first rack for this seems to work, but feels wrong.
     if album.tracks[0].disk_number.is_none() {
       table.add_row(row!["Track", "Title", "Duration", "Rate", "Depth", "File"]);
     }
@@ -50,7 +68,7 @@ pub fn list_files(fname: String) -> io::Result<()> {
       if ld != cd {
         ld = cd;
         if cd.is_some() {
-          table.add_row(row![format!("Disk: {}", cd.unwrap())]);
+          table.add_row(row![format!("\nDisk: {}", cd.unwrap())]);
           table.add_row(row!["Track", "Title", "Duration", "Rate", "Depth", "Path"]);
         }
       }
@@ -59,7 +77,7 @@ pub fn list_files(fname: String) -> io::Result<()> {
       table.add_row(row![
         t.tracks_display(),
         t.title.unwrap_or(NONE_SHORT.to_string()),
-        format_duration(&t.format.duration, true),
+        format_duration(&t.format.duration(), true),
         format!("{} KHz", (t.format.sample_rate as f64 / 1000.0)),
         format!("{} bits", t.format.bits_per_sample.to_string()),
         pn,
@@ -69,8 +87,8 @@ pub fn list_files(fname: String) -> io::Result<()> {
   }
 
   // let (tracks, files) = track::files_from(path)?;
-  println!("\nFiles:");
   if files.len() > 0 {
+    println!("\nFiles:");
     for f in files {
       println!("{}", path_file_name(&f));
     }
@@ -79,14 +97,14 @@ pub fn list_files(fname: String) -> io::Result<()> {
   Ok(())
 }
 
-pub fn describe_file(fname: String) -> io::Result<()> {
+pub fn describe_file(fname: String) -> Result<(), Box<dyn Error>> {
   // Only do a single file at a time.
   let p = path::PathBuf::from(&fname);
   if !p.as_path().is_file() {
-    return Err(io::Error::new(
+    return Err(Box::new(io::Error::new(
       io::ErrorKind::Other,
       format!("{} is not a file.", p.as_path().display()),
-    ));
+    )));
   }
 
   let mut table; // We'll be reusing this below for formating output.
@@ -94,13 +112,12 @@ pub fn describe_file(fname: String) -> io::Result<()> {
   if tracks.len() > 0 {
     // this is overkill as we sould only get one file back.
     for tk in tracks {
-      // Print track details
-      let fsize;
-      if let Ok(md) = tk.path.as_path().metadata() {
-        fsize = md.len();
-      } else {
-        fsize = 0;
-      }
+      // Display track details
+      let fsize = match tk.path.as_path().metadata() {
+        Ok(md) => md.len().to_formatted_string(&Locale::en),
+        Err(_) => "<Unknown>".to_string(),
+      };
+
       println!("Track Details");
       struct Te<'a>(&'a str, String);
       let ts = [
@@ -111,11 +128,11 @@ pub fn describe_file(fname: String) -> io::Result<()> {
         Te(
           "Track",
           tk.track_number
-            .map_or(NONE_SHORT.to_string(), |tn| tn.to_string()),
+            .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
         ),
         Te(
-          "Total Tracks",
-          tk.total_tracks
+          "Track Total",
+          tk.track_total
             .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
         ),
         Te(
@@ -131,7 +148,7 @@ pub fn describe_file(fname: String) -> io::Result<()> {
         Te(
           "Sample Rate",
           format!(
-            "{} bits",
+            "{} Hz",
             tk.format.sample_rate.to_formatted_string(&Locale::en)
           ),
         ),
@@ -147,11 +164,8 @@ pub fn describe_file(fname: String) -> io::Result<()> {
           "Channels",
           tk.format.channels.to_formatted_string(&Locale::en),
         ),
-        Te("Duration", format_duration(&tk.format.duration, false)),
-        Te(
-          "Size",
-          format!("{} bytes", fsize.to_formatted_string(&Locale::en)),
-        ),
+        Te("Duration", format_duration(&tk.format.duration(), false)),
+        Te("Size", format!("{} bytes", fsize)),
       ];
       table = Table::new();
       table.set_format(*FORMAT_CLEAN);
@@ -161,7 +175,7 @@ pub fn describe_file(fname: String) -> io::Result<()> {
       table.printstd();
       println!();
 
-      // Print Comments
+      // Display Comments
       println!("Metadata");
       table = Table::new();
       table.set_format(*FORMAT_CLEAN);
@@ -172,8 +186,8 @@ pub fn describe_file(fname: String) -> io::Result<()> {
         table.add_row(row![k, v[0]]);
         let mut i = 1;
         while i < v.len() {
-          i = i + 1;
           table.add_row(row!["", v[i]]);
+          i = i + 1;
         }
       }
       table.printstd();
@@ -195,8 +209,7 @@ fn format_duration(d: &Duration, col: bool) -> String {
   }
 }
 
-fn dir_or_cwd(n: String) -> io::Result<path::PathBuf> {
-  let p = path::PathBuf::from(n);
+fn dir_or_cwd(p: path::PathBuf) -> io::Result<path::PathBuf> {
   if p.is_dir() {
     return Ok(p);
   }
@@ -206,10 +219,9 @@ fn dir_or_cwd(n: String) -> io::Result<path::PathBuf> {
 // Deal with the gymnastics of getting the file
 // name out of the path.
 fn path_file_name(p: &path::PathBuf) -> String {
-  let pn;
-  match p.as_path().file_name() {
-    Some(f) => pn = f,
-    None => pn = p.as_path().as_os_str(),
-  }
+  let pn = match p.as_path().file_name() {
+    Some(f) => f,
+    None => p.as_path().as_os_str(),
+  };
   return pn.to_string_lossy().into_owned();
 }

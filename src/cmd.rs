@@ -8,6 +8,7 @@ use clap::AppSettings;
 // use chrono::Local;
 use linefeed::{Interface, ReadResult};
 use std::env;
+use std::error::Error;
 use std::path;
 use std::sync::{mpsc, Arc};
 use std::thread;
@@ -23,7 +24,7 @@ pub struct Config {
 }
 
 /// Top level interface to run the command and return an error.
-pub fn run(c: Config) -> Result<()> {
+pub fn run(c: Config) -> Result<(), Box<dyn Error>> {
   match AppCmds::from_iter_safe(&env::args().collect::<Vec<String>>()[1..]) {
     Ok(mut opt) => {
       opt.history_path = c.history_path;
@@ -94,7 +95,7 @@ struct Path {
 // the ability to run either a single command from InteractiveCmds
 // and return with a reswult, or to run an interactive loop
 // for commands from InteractiveCommands.
-fn parse_app(opt: AppCmds) -> Result<ParseResult> {
+fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
   match opt.subcmd {
     RootSubcommand::Interactive(p) => {
       // If a directory is given, CD to it.
@@ -113,7 +114,7 @@ fn parse_app(opt: AppCmds) -> Result<ParseResult> {
 }
 
 // Command implementation
-fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult> {
+fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult, Box<dyn Error>> {
   match cmd {
     InteractiveCommands::List(p) => {
       display::list_files(p.path.join(" "))?;
@@ -134,7 +135,7 @@ fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult> {
   }
 }
 
-pub type Result<T> = std::result::Result<T, ParseError>;
+// pub type Result<T> = std::result::Result<T, ParseError>;
 
 enum ParseResult {
   Complete,
@@ -188,7 +189,7 @@ impl From<std::io::Error> for ParseError {
 
 // TODO: Need to automatically udpate
 // based on current directory.
-fn readloop(history_path: Option<String>) -> Result<()> {
+fn readloop(history_path: Option<String>) -> Result<(), Box<dyn Error>> {
   //
   // Prompt & Readline loop.
   let (tx, rx) = mpsc::channel();
@@ -263,21 +264,23 @@ struct PromptUpdate {
 // const TIME_FMT: &str = "%a %b %e %Y %T";
 fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
   thread::spawn(move || {
-    let mut i = 0;
     loop {
       thread::sleep(Duration::from_millis(1000));
-      let cd;
-      if let Ok(p) = env::current_dir() {
-        cd = p.as_path().to_owned()
-      } else {
-        cd = path::Path::new("Unknown").to_owned();
-      }
+      let cd = match env::current_dir() {
+        Ok(p) => p.as_path().to_owned(),
+        Err(_) => path::Path::new("Unknown)").to_owned(),
+      };
+      // let cd;
+      // if let Ok(p) = env::current_dir() {
+      //   cd = p.as_path().to_owned()
+      // } else {
+      //   cd = path::Path::new("Unknown").to_owned();
+      // }
       if let Err(e) = tx.send(PromptUpdate {
         new_prompt: String::from(format!("cli <{}> ", cd.display())),
       }) {
         eprintln!("Failed to send a new prompt: {:?}", e)
       }
-      i = i + 1;
     }
   });
 }
