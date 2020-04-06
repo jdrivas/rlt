@@ -1,7 +1,9 @@
 use crate::track;
 use metaflac::{Block, Tag};
 use std::error::Error;
+use std::fs::File;
 use std::io::{Read, Seek};
+use std::path::PathBuf;
 
 const DISCTOTAL: &str = "DISCTOTAL";
 const DISCNUMBER: &str = "DISCNUMBER";
@@ -9,18 +11,45 @@ const RELEASEDATE: &str = "RELEASE_DATE";
 const VENDOR: &str = "VENDOR";
 const ALT_TOTALTRACKS: &str = "TRACKTOTAL";
 
-pub struct Flac;
+#[derive(Default)]
+pub struct Flac {
+    path: PathBuf,
+    file: Option<File>,
+}
+
+impl Flac {
+    pub fn new(p: &PathBuf) -> Flac {
+        return Flac {
+            path: p.clone(),
+            ..Default::default()
+        };
+    }
+}
+
+const FORMAT_NAME: &str = "flac";
+
 impl track::Decoder for Flac {
-    fn is_candidate<R: Read + Seek>(r: R) -> Result<bool, Box<dyn Error>> {
-        let mut r = r;
-        return Ok(Tag::is_candidate(&mut r));
+    /// Determine if the file is a Flac file.
+    /// /// This will return the file to seek(SeekFrom::Start(0)), as
+    /// if it had not been read.
+    fn is_candidate(&mut self) -> Result<bool, Box<dyn Error>> {
+        if self.file.is_none() {
+            self.file = Some(File::open(&self.path)?);
+        }
+        return Ok(Tag::is_candidate(self.file.as_mut().unwrap()));
     }
 
-    fn get_track<R: Read + Seek>(r: R) -> Result<Option<track::Track>, Box<dyn Error>> {
-        let mut r = r;
-        match Tag::read_from(&mut r) {
+    /// Create a track with as much information as you have from the file.
+    /// Note, path is not set here, it has to be set separately - path information
+    /// is not passed in this call.
+    fn get_track(&mut self) -> Result<Option<track::Track>, Box<dyn Error>> {
+        if self.file.is_none() {
+            self.file = Some(File::open(&self.path)?);
+        }
+        match Tag::read_from(self.file.as_mut().unwrap()) {
             Ok(t) => {
                 let mut tk = track::Track {
+                    file_format: FORMAT_NAME.to_string(),
                     ..Default::default()
                 };
                 hydrate(&t, &mut tk);
@@ -36,7 +65,6 @@ impl track::Decoder for Flac {
         }
     }
 }
-
 fn hydrate(t: &Tag, tk: &mut track::Track) {
     for b in t.blocks() {
         match b {

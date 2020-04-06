@@ -59,7 +59,9 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
     // Most cases we have no disc numbers so add the track header now
     // TODO(jdr): Checking the first rack for this seems to work, but feels wrong.
     if album.tracks[0].disk_number.is_none() {
-      table.add_row(row!["Track", "Title", "Duration", "Rate", "Depth", "File"]);
+      table.add_row(row![
+        "Track", "Title", "Duration", "Rate", "Depth", "Format", "File"
+      ]);
     }
     let mut ld = None;
     for t in album.tracks {
@@ -69,7 +71,9 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
         ld = cd;
         if cd.is_some() {
           table.add_row(row![format!("\nDisk: {}", cd.unwrap())]);
-          table.add_row(row!["Track", "Title", "Duration", "Rate", "Depth", "Path"]);
+          table.add_row(row![
+            "Track", "Title", "Duration", "Rate", "Depth", "Format", "Path"
+          ]);
         }
       }
       // display track data.
@@ -80,6 +84,7 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
         format_duration(&t.format.duration(), true),
         format!("{} KHz", (t.format.sample_rate as f64 / 1000.0)),
         format!("{} bits", t.format.bits_per_sample.to_string()),
+        t.file_format,
         pn,
       ]);
     }

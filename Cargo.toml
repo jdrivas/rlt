@@ -17,4 +17,5 @@ git-version = "0.3"
 num-format  = "0.4"
 id3 = "0.5"
 hound = "3.4"
-
+mp3-metadata = "0.3"
+puremp3 = "0.1"

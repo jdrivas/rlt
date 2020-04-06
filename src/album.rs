@@ -1,9 +1,5 @@
 extern crate chrono;
 use crate::track;
-// use chrono::DateTime;
-// use chrono::offset::TimeZone;
-// use std::collections::hash_map::Values;
-// use std::collections::HashMap;
 use std::error::Error;
 use std::io;
 use std::path;
@@ -15,7 +11,6 @@ pub struct Album {
     pub artist: Option<String>,
     pub track_total: Option<u32>,
     pub disk_total: Option<u32>,
-    // release: Option<DateTime<dyn TimeZone>>,
 }
 
 // TODO(jdr): Learn to use lifetimes and get rid of these tk.* clones?

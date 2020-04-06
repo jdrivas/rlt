@@ -1,7 +1,8 @@
-use crate::flac::Flac;
-use crate::id3::Id3;
-use crate::wav::Wav;
-// use id3::Tag as ID3Tag;
+use crate::flac;
+// use crate::id3;
+use crate::mp3;
+use crate::wav;
+
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
@@ -17,7 +18,6 @@ pub struct SampleFormat {
   pub channels: u8,
   pub bits_per_sample: u16,
   pub total_samples: u64,
-  pub duration: Duration,
 }
 
 const BILLION: u64 = 1_000_000_000;
@@ -34,6 +34,7 @@ impl SampleFormat {
 #[derive(Debug)]
 pub struct Track {
   pub path: path::PathBuf,
+  pub file_format: String,
   pub title: Option<String>,
   pub artist: Option<String>,
   pub album: Option<String>,
@@ -49,6 +50,7 @@ impl Default for Track {
   fn default() -> Self {
     Track {
       path: path::PathBuf::default(),
+      file_format: String::default(),
       title: None,
       artist: None,
       album: None,
@@ -134,26 +136,65 @@ pub fn files_from(
 }
 
 pub trait Decoder {
-  fn is_candidate<R: Read + Seek>(r: R) -> Result<bool, Box<dyn Error>>;
-  fn get_track<R: Read + Seek>(r: R) -> Result<Option<Track>, Box<dyn Error>>;
+  fn is_candidate(&mut self) -> Result<bool, Box<dyn Error>>;
+  fn get_track(&mut self) -> Result<Option<Track>, Box<dyn Error>>;
+  // fn is_candidate<R: Read + Seek>(r: R) -> Result<bool, Box<dyn Error>>;
+  // fn get_track<R: Read + Seek>(r: R) -> Result<Option<Track>, Box<dyn Error>>;
 }
 
+/// Get a track from a file specified by path.
+/// This will try to read the file's meta-data against any installed
+/// decoders. Currently we look at: Flac, ID3, and WAV.
+/// Working on mp4.
 pub fn get_track(p: &path::PathBuf) -> Result<Option<Track>, Box<dyn Error>> {
-  // TODO(jdr): I just gotta believe there is a better way.
-  // Would really like to get these into one structure rather than two.
-  // An array of tuples (Flac::is_canddiate, Flac::get_track) the compiler discovers
-  // as type of the first specific decoder object (e.g. flac::Flac), really as you'd expect
-  // because those are different real objects.
-  // Not sure how to define a struct to take one of these as there are no real objects.
-  // Also - it would be good to just read these in somehow, though dynamic libraries
-  // in a well known place seems about too clever by 1/2.
-  let candidates = [Flac::is_candidate, Wav::is_candidate, Id3::is_candidate];
-  let gets = [Flac::get_track, Wav::get_track, Id3::get_track];
+  // TODO(jdr)
+  // To get here, instead of iplementing a trait on a unit struct (e.g. struct flac::Flac;),
+  // I created separate functions and the struct below that captures them.
+  // Moreover, I couldn't use the more generic definition for the arguments
+  // that I wanted  fn<R: Read + Seek>(r: R), opting instead for the concreate:
+  // fn< std::fs::File).
+  // I like this better than all of the other alternatives however.
+  // struct Decoder {
+  //   is_candidate: fn(&mut std::fs::File) -> Result<bool, Box<dyn Error>>,
+  //   get_track: fn(&mut std::fs::File) -> Result<Option<Track>, Box<dyn Error>>,
+  // }
 
-  let f = File::open(&p)?;
-  for i in 0..candidates.len() {
-    if candidates[i](&f)? {
-      return Ok(gets[i](&f)?);
+  // Decoders are checked in order. If a candidate is
+  // found then the get_track is executed.
+  // let decoders = [
+  //   Decoder {
+  //     is_candidate: flac::is_candidate,
+  //     get_track: flac::get_track,
+  //   },
+  //   Decoder {
+  //     is_candidate: mp3::is_candidate,
+  //     get_track: mp3::get_track,
+  //   },
+  //   Decoder {
+  //     is_candidate: id3::is_candidate,
+  //     get_track: id3::get_track,
+  //   },
+  //   Decoder {
+  //     is_candidate: wav::is_candidate,
+  //     get_track: wav::get_track,
+  //   },
+  // ];
+
+  // // let mut f = File::open(&p)?;
+  // for d in &decoders {
+  //   if (d.is_candidate)(p)? {
+  //     return Ok((d.get_track)(p)?);
+  //   }
+  // }
+
+  let mut decoders: Vec<Box<dyn Decoder>> = Vec::new();
+  decoders.push(Box::new(flac::Flac::new(&p)));
+  decoders.push(Box::new(wav::Wav::new(&p)));
+  decoders.push(Box::new(mp3::Mp3::new(&p)));
+
+  for d in &mut decoders {
+    if d.is_candidate()? {
+      return Ok(d.get_track()?);
     }
   }
 
