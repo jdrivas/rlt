@@ -13,7 +13,7 @@ use std::time::Duration;
 use std::vec::Vec;
 
 #[derive(Default, Debug)]
-pub struct SampleFormat {
+pub struct PCMFormat {
   pub sample_rate: u32, // Hertz
   pub channels: u8,
   pub bits_per_sample: u16,
@@ -21,13 +21,67 @@ pub struct SampleFormat {
 }
 
 const BILLION: u64 = 1_000_000_000;
-impl SampleFormat {
+impl PCMFormat {
   pub fn duration(&self) -> Duration {
     // Compute duration
     let mut ns = self.total_samples as f64 / self.sample_rate as f64;
     ns = ns * BILLION as f64;
     return Duration::from_nanos(ns as u64);
   }
+}
+
+#[derive(Debug)]
+pub struct MPEGFormat {
+  pub bitrate: u16,
+  pub version: MPVersion,
+  pub layer: MPLayer,
+  pub duration: Duration,
+}
+
+impl MPEGFormat {
+  pub fn version_string(&self) -> String {
+    match &self.version {
+      MPVersion::Reserved => "Reserved".to_string(),
+      MPVersion::MPEG1 => "Mpeg-1".to_string(),
+      MPVersion::MPEG2 => "Mpeg-2".to_string(),
+      MPVersion::MPEG2_5 => "Mpeg-2.5".to_string(),
+      MPVersion::Unknown => "Unknwon".to_string(),
+    }
+  }
+
+  pub fn layer_string(&self) -> String {
+    match &self.layer {
+      MPLayer::Reserved => "Reserved".to_string(),
+      MPLayer::Layer1 => "Layer-1".to_string(),
+      MPLayer::Layer2 => "Layer-2".to_string(),
+      MPLayer::Layer3 => "Layer-3".to_string(),
+      MPLayer::Unknown => "Unknwon".to_string(),
+    }
+  }
+}
+
+#[derive(Debug)]
+pub enum MPVersion {
+  Reserved,
+  MPEG1,
+  MPEG2,
+  MPEG2_5,
+  Unknown,
+}
+
+#[derive(Debug)]
+pub enum MPLayer {
+  Reserved,
+  Layer1,
+  Layer2,
+  Layer3,
+  Unknown,
+}
+
+#[derive(Debug)]
+pub enum CodecFormat {
+  PCM(PCMFormat),
+  MPEG(MPEGFormat),
 }
 
 // #[derive(Default, Debug)]
@@ -43,7 +97,7 @@ pub struct Track {
   pub disk_number: Option<u32>,
   pub disk_total: Option<u32>,
   pub comments: HashMap<String, Vec<String>>,
-  pub format: SampleFormat,
+  pub format: Option<CodecFormat>,
 }
 
 impl Default for Track {
@@ -58,7 +112,7 @@ impl Default for Track {
       track_total: None,
       disk_number: None,
       disk_total: None,
-      format: SampleFormat::default(),
+      format: None,
       comments: HashMap::new(),
     }
   }
@@ -147,46 +201,14 @@ pub trait Decoder {
 /// decoders. Currently we look at: Flac, ID3, and WAV.
 /// Working on mp4.
 pub fn get_track(p: &path::PathBuf) -> Result<Option<Track>, Box<dyn Error>> {
-  // TODO(jdr)
-  // To get here, instead of iplementing a trait on a unit struct (e.g. struct flac::Flac;),
-  // I created separate functions and the struct below that captures them.
-  // Moreover, I couldn't use the more generic definition for the arguments
-  // that I wanted  fn<R: Read + Seek>(r: R), opting instead for the concreate:
-  // fn< std::fs::File).
-  // I like this better than all of the other alternatives however.
-  // struct Decoder {
-  //   is_candidate: fn(&mut std::fs::File) -> Result<bool, Box<dyn Error>>,
-  //   get_track: fn(&mut std::fs::File) -> Result<Option<Track>, Box<dyn Error>>,
-  // }
+  // TODO(jdr) This currently supports path only access.
+  // This wants a Read + Seek trait implementation.
+  // Some of the decoders though, only take path to create.
+  // This is almost certainly gotten around by re-writting their
+  // helper functions ourselves.
 
-  // Decoders are checked in order. If a candidate is
-  // found then the get_track is executed.
-  // let decoders = [
-  //   Decoder {
-  //     is_candidate: flac::is_candidate,
-  //     get_track: flac::get_track,
-  //   },
-  //   Decoder {
-  //     is_candidate: mp3::is_candidate,
-  //     get_track: mp3::get_track,
-  //   },
-  //   Decoder {
-  //     is_candidate: id3::is_candidate,
-  //     get_track: id3::get_track,
-  //   },
-  //   Decoder {
-  //     is_candidate: wav::is_candidate,
-  //     get_track: wav::get_track,
-  //   },
-  // ];
-
-  // // let mut f = File::open(&p)?;
-  // for d in &decoders {
-  //   if (d.is_candidate)(p)? {
-  //     return Ok((d.get_track)(p)?);
-  //   }
-  // }
-
+  // Order matters! Codecs will be tried in order
+  // first match with is_candidate wins.
   let mut decoders: Vec<Box<dyn Decoder>> = Vec::new();
   decoders.push(Box::new(flac::Flac::new(&p)));
   decoders.push(Box::new(wav::Wav::new(&p)));

@@ -4,7 +4,7 @@ use crate::album;
 use crate::track;
 use format::consts::FORMAT_CLEAN;
 use num_format::{Locale, ToFormattedString};
-use prettytable::{format, Table};
+use prettytable::{format, Cell, Row, Table};
 
 use std::env;
 use std::error::Error;
@@ -59,43 +59,68 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
     // Most cases we have no disc numbers so add the track header now
     // TODO(jdr): Checking the first rack for this seems to work, but feels wrong.
     if album.tracks[0].disk_number.is_none() {
-      table.add_row(row![
-        "Track", "Title", "Duration", "Rate", "Depth", "Format", "File"
-      ]);
+      table.add_row(title_row(&album.tracks[0].format));
     }
     let mut ld = None;
-    for t in album.tracks {
+    for t in &album.tracks {
       // Handle disc numbers and the track header wtih them.
       let cd = t.disk_number;
       if ld != cd {
         ld = cd;
         if cd.is_some() {
           table.add_row(row![format!("\nDisk: {}", cd.unwrap())]);
-          table.add_row(row![
-            "Track", "Title", "Duration", "Rate", "Depth", "Format", "Path"
-          ]);
+          table.add_row(title_row(&t.format));
         }
       }
       // display track data.
       let pn = path_file_name(&t.path);
-      table.add_row(row![
-        t.tracks_display(),
-        t.title.unwrap_or(NONE_SHORT.to_string()),
-        format_duration(&t.format.duration(), true),
-        format!("{} KHz", (t.format.sample_rate as f64 / 1000.0)),
-        format!("{} bits", t.format.bits_per_sample.to_string()),
-        t.file_format,
-        pn,
-      ]);
+      if let Some(c) = &t.format {
+        match c {
+          track::CodecFormat::PCM(f) => {
+            table.add_row(row![
+              t.tracks_display(),
+              t.title.as_ref().unwrap_or(&NONE_SHORT.to_string()),
+              format_duration(&f.duration(), true),
+              format!("{} KHz", (f.sample_rate as f64 / 1000.0)),
+              format!("{} bits", f.bits_per_sample.to_string()),
+              t.file_format,
+              pn,
+            ]);
+          }
+          track::CodecFormat::MPEG(f) => {
+            table.add_row(row![
+              t.tracks_display(),
+              t.title.as_ref().unwrap_or(&NONE_SHORT.to_string()),
+              format_duration(&f.duration, true),
+              format!("{:>3} Kbps", f.bitrate.to_string()),
+              f.version_string(),
+              f.layer_string(),
+              t.file_format,
+              pn,
+            ]);
+          }
+        }
+      } else {
+        table.add_row(row![
+          t.tracks_display(),
+          t.title.as_ref().unwrap_or(&NONE_SHORT.to_string()),
+          NONE_SHORT.to_string(),
+          NONE_SHORT.to_string(),
+          NONE_SHORT.to_string(),
+          NONE_SHORT.to_string(),
+          t.file_format,
+          pn,
+        ]);
+      }
     }
     table.printstd();
-  }
 
-  // let (tracks, files) = track::files_from(path)?;
-  if files.len() > 0 {
-    println!("\nFiles:");
-    for f in files {
-      println!("{}", path_file_name(&f));
+    // let (tracks, files) = track::files_from(path)?;
+    if files.len() > 0 {
+      println!("\nFiles:");
+      for f in files {
+        println!("{}", path_file_name(&f));
+      }
     }
   }
 
@@ -112,96 +137,152 @@ pub fn describe_file(fname: String) -> Result<(), Box<dyn Error>> {
     )));
   }
 
-  let mut table; // We'll be reusing this below for formating output.
   let (tracks, _) = track::files_from(p)?;
   if tracks.len() > 0 {
     // this is overkill as we sould only get one file back.
     for tk in tracks {
       // Display track details
-      let fsize = match tk.path.as_path().metadata() {
-        Ok(md) => md.len().to_formatted_string(&Locale::en),
-        Err(_) => "<Unknown>".to_string(),
-      };
 
-      println!("Track Details");
-      struct Te<'a>(&'a str, String);
-      let ts = [
-        Te("File", path_file_name(&tk.path)),
-        Te("Artist", tk.artist.unwrap_or(NONE_SHORT.to_string())),
-        Te("Album", tk.album.unwrap_or(NONE_SHORT.to_string())),
-        Te("Title", tk.title.unwrap_or(NONE_SHORT.to_string())),
-        Te(
-          "Track",
-          tk.track_number
-            .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
-        ),
-        Te(
-          "Track Total",
-          tk.track_total
-            .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
-        ),
-        Te(
-          "Disk Number",
-          tk.disk_number
-            .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
-        ),
-        Te(
-          "Disk Total",
-          tk.disk_total
-            .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
-        ),
-        Te(
-          "Sample Rate",
-          format!(
-            "{} Hz",
-            tk.format.sample_rate.to_formatted_string(&Locale::en)
-          ),
-        ),
-        Te(
-          "Sample Size",
-          format!("{} bits", tk.format.bits_per_sample.to_string()),
-        ),
-        Te(
-          "Samples",
-          tk.format.total_samples.to_formatted_string(&Locale::en),
-        ),
-        Te(
-          "Channels",
-          tk.format.channels.to_formatted_string(&Locale::en),
-        ),
-        Te("Duration", format_duration(&tk.format.duration(), false)),
-        Te("Size", format!("{} bytes", fsize)),
-      ];
-      table = Table::new();
-      table.set_format(*FORMAT_CLEAN);
-      for t in &ts {
-        table.add_row(row![t.0, t.1]);
-      }
-      table.printstd();
-      println!();
-
-      // Display Comments
-      println!("Metadata");
-      table = Table::new();
-      table.set_format(*FORMAT_CLEAN);
-      table.add_row(row!["Key", "Value"]);
-      let mut vs: Vec<_> = tk.comments.iter().collect();
-      vs.sort();
-      for (k, v) in vs {
-        table.add_row(row![k, v[0]]);
-        let mut i = 1;
-        while i < v.len() {
-          table.add_row(row!["", v[i]]);
-          i = i + 1;
-        }
-      }
-      table.printstd();
+      describe_track(tk)?;
     }
   } else {
     println!("{}", fname);
   }
 
   Ok(())
+}
+
+struct Te<'a>(&'a str, String);
+
+fn print_te_list(v: Vec<Te>) {
+  let mut table = Table::new();
+  table.set_format(*FORMAT_CLEAN);
+  for t in &v {
+    table.add_row(row![t.0, t.1]);
+  }
+  table.printstd();
+}
+
+fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
+  let fsize = match tk.path.as_path().metadata() {
+    Ok(md) => md.len().to_formatted_string(&Locale::en),
+    Err(_) => "<Unknown>".to_string(),
+  };
+
+  let mut tes = Vec::<Te>::new();
+
+  // Basic track info.
+  tes.push(Te("File", path_file_name(&tk.path)));
+  tes.push(Te("Artist", tk.artist.unwrap_or(NONE_SHORT.to_string())));
+  tes.push(Te("Album", tk.album.unwrap_or(NONE_SHORT.to_string())));
+  tes.push(Te("Title", tk.title.unwrap_or(NONE_SHORT.to_string())));
+  tes.push(Te(
+    "Track",
+    tk.track_number
+      .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
+  ));
+  tes.push(Te(
+    "Track Total",
+    tk.track_total
+      .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
+  ));
+  tes.push(Te(
+    "Disk Number",
+    tk.disk_number
+      .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
+  ));
+  tes.push(Te(
+    "Disk Total",
+    tk.disk_total
+      .map_or(NONE_SHORT.to_string(), |v| v.to_string()),
+  ));
+
+  // Codec Specific
+  if let Some(c) = tk.format {
+    match c {
+      track::CodecFormat::PCM(sf) => {
+        tes.push(Te(
+          "Sample Rate",
+          format!("{} Hz", sf.sample_rate.to_formatted_string(&Locale::en)),
+        ));
+        tes.push(Te(
+          "Sample Size",
+          format!("{} bits", sf.bits_per_sample.to_string()),
+        ));
+        tes.push(Te(
+          "Samples",
+          sf.total_samples.to_formatted_string(&Locale::en),
+        ));
+        tes.push(Te("Channels", sf.channels.to_formatted_string(&Locale::en)));
+        tes.push(Te("Duration", format_duration(&sf.duration(), false)));
+      }
+      track::CodecFormat::MPEG(f) => {
+        tes.push(Te("Bitrate", f.bitrate.to_string()));
+        tes.push(Te("Version", f.version_string()));
+        tes.push(Te("Layer", f.layer_string()));
+      }
+    }
+  }
+
+  // Tail basic track
+  tes.push(Te("Size", format!("{} bytes", fsize)));
+  print_te_list(tes);
+  println!();
+
+  // Display Comments
+  println!("Metadata");
+  let mut table = Table::new();
+  table.set_format(*FORMAT_CLEAN);
+  table.add_row(row!["Key", "Value"]);
+  let mut vs: Vec<_> = tk.comments.iter().collect();
+  vs.sort();
+  for (k, v) in vs {
+    table.add_row(row![k, v[0]]);
+    let mut i = 1;
+    while i < v.len() {
+      table.add_row(row!["", v[i]]);
+      i = i + 1;
+    }
+  }
+  table.printstd();
+
+  Ok(())
+}
+
+// UTIL
+const PCM_LIST_TITLES: [&str; 7] = [
+  "Track", "Title", "Duration", "Rate", "Depth", "Format", "File",
+];
+
+fn title_row(f: &Option<track::CodecFormat>) -> Row {
+  if let Some(c) = f {
+    match c {
+      track::CodecFormat::PCM(_) => pcm_title_row(),
+      track::CodecFormat::MPEG(_) => mpeg_title_row(),
+    }
+  } else {
+    Row::empty()
+  }
+}
+
+fn pcm_title_row() -> Row {
+  let mut r = Row::empty();
+  for s in &PCM_LIST_TITLES {
+    r.add_cell(Cell::new(s));
+  }
+  r
+}
+
+const MPEG_LIST_TITLES: [&str; 8] = [
+  "Track", "Title", "Duration", "Bitrate", "Version", "Layer", "Format", "File",
+];
+
+fn mpeg_title_row() -> Row {
+  let mut r = Row::empty();
+  for s in &MPEG_LIST_TITLES {
+    r.add_cell(Cell::new(s));
+  }
+  r
 }
 
 fn format_duration(d: &Duration, col: bool) -> String {

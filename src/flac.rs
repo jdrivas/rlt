@@ -68,18 +68,21 @@ impl track::Decoder for Flac {
 fn hydrate(t: &Tag, tk: &mut track::Track) {
     for b in t.blocks() {
         match b {
-            Block::StreamInfo(si) => si_hydrate(si, &mut tk.format),
+            Block::StreamInfo(si) => si_hydrate(si, tk),
             Block::VorbisComment(vc) => vorbis_hydrate(&vc, tk),
             _ => (), // TODO(jdr) should figure out how to attach arbitrary data to a track.
         }
     }
 }
 
-fn si_hydrate(si: &metaflac::block::StreamInfo, f: &mut track::SampleFormat) {
-    f.sample_rate = si.sample_rate;
-    f.channels = si.num_channels;
-    f.bits_per_sample = si.bits_per_sample as u16;
-    f.total_samples = si.total_samples;
+fn si_hydrate(si: &metaflac::block::StreamInfo, tk: &mut track::Track) {
+    let f = track::PCMFormat {
+        sample_rate: si.sample_rate,
+        channels: si.num_channels,
+        bits_per_sample: si.bits_per_sample as u16,
+        total_samples: si.total_samples,
+    };
+    tk.format = Some(track::CodecFormat::PCM(f));
 }
 
 fn vorbis_hydrate(vc: &metaflac::block::VorbisComment, tk: &mut track::Track) {

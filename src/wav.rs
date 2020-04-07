@@ -60,10 +60,17 @@ impl track::Decoder for Wav {
             file_format: FORMAT_NAME.to_string(),
             ..Default::default()
         };
-        tk.format.sample_rate = spec.sample_rate;
-        tk.format.channels = spec.channels as u8;
-        tk.format.bits_per_sample = spec.bits_per_sample;
-        tk.format.total_samples = wr.duration() as u64;
+        let f = track::PCMFormat {
+            sample_rate: spec.sample_rate,
+            channels: spec.channels as u8,
+            bits_per_sample: spec.bits_per_sample,
+            total_samples: wr.duration() as u64,
+        };
+        tk.format = Some(track::CodecFormat::PCM(f));
+        // tk.format.sample_rate = spec.sample_rate;
+        // tk.format.channels = spec.channels as u8;
+        // tk.format.bits_per_sample = spec.bits_per_sample;
+        // tk.format.total_samples = wr.duration() as u64;
         // tk.format.???? = spec.sample_format; // TODO(jdr): Do we want to accomodate this somehow?
         return Ok(Some(tk));
     }
