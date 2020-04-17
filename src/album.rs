@@ -50,10 +50,7 @@ pub fn album_from_tracks(tks: Vec<track::Track>) -> Album {
         album.title = album.tracks[0].album.clone();
         album.artist = album.tracks[0].artist.clone();
         album.disk_total = album.tracks[0].disk_total;
-        album.track_total = album.tracks[0].track_total;
-        if album.track_total.is_none() {
-            album.track_total = Some(album.tracks.len() as u32);
-        }
+        album.track_total = Some(album.tracks.len() as u32);
     }
     return album;
 }

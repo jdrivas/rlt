@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{Seek, SeekFrom};
 use std::path::PathBuf;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Wav {
     path: PathBuf,
     file: Option<File>,
@@ -22,7 +22,11 @@ impl Wav {
 
 const FORMAT_NAME: &str = "wav";
 
+//
 impl track::Decoder for Wav {
+    fn name(&self) -> &str {
+        FORMAT_NAME
+    }
     /// Determine if the file is a wav file.
     /// /// This will return the file to seek(SeekFrom::Start(0)), as
     /// if it had not been read.
@@ -46,8 +50,6 @@ impl track::Decoder for Wav {
     /// track::SampleFormat.
     /// Thie means you need to set the title (and anything else for that matter
     /// on your own.
-    /// Note, also, path is not set here, it has to be set separately (we don't get the
-    /// path information in this call).
     fn get_track(&mut self) -> Result<Option<track::Track>, Box<dyn Error>> {
         if self.file.is_none() {
             self.file = Some(File::open(&self.path)?);
@@ -57,7 +59,8 @@ impl track::Decoder for Wav {
         let wr = hound::WavReader::new(f)?;
         let spec = wr.spec();
         let mut tk = track::Track {
-            file_format: FORMAT_NAME.to_string(),
+            path: self.path.clone(),
+            file_format: Some(FORMAT_NAME.to_string()),
             ..Default::default()
         };
         let f = track::PCMFormat {
@@ -67,11 +70,6 @@ impl track::Decoder for Wav {
             total_samples: wr.duration() as u64,
         };
         tk.format = Some(track::CodecFormat::PCM(f));
-        // tk.format.sample_rate = spec.sample_rate;
-        // tk.format.channels = spec.channels as u8;
-        // tk.format.bits_per_sample = spec.bits_per_sample;
-        // tk.format.total_samples = wr.duration() as u64;
-        // tk.format.???? = spec.sample_format; // TODO(jdr): Do we want to accomodate this somehow?
         return Ok(Some(tk));
     }
 }

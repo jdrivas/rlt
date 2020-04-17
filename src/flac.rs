@@ -2,16 +2,16 @@ use crate::track;
 use metaflac::{Block, Tag};
 use std::error::Error;
 use std::fs::File;
-use std::io::{Read, Seek};
+// use std::io::{Read, Seek};
 use std::path::PathBuf;
 
 const DISCTOTAL: &str = "DISCTOTAL";
 const DISCNUMBER: &str = "DISCNUMBER";
-const RELEASEDATE: &str = "RELEASE_DATE";
-const VENDOR: &str = "VENDOR";
+// const RELEASEDATE: &str = "RELEASE_DATE";
+// const VENDOR: &str = "VENDOR";
 const ALT_TOTALTRACKS: &str = "TRACKTOTAL";
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Flac {
     path: PathBuf,
     file: Option<File>,
@@ -29,6 +29,9 @@ impl Flac {
 const FORMAT_NAME: &str = "flac";
 
 impl track::Decoder for Flac {
+    fn name(&self) -> &str {
+        FORMAT_NAME
+    }
     /// Determine if the file is a Flac file.
     /// /// This will return the file to seek(SeekFrom::Start(0)), as
     /// if it had not been read.
@@ -49,7 +52,11 @@ impl track::Decoder for Flac {
         match Tag::read_from(self.file.as_mut().unwrap()) {
             Ok(t) => {
                 let mut tk = track::Track {
-                    file_format: FORMAT_NAME.to_string(),
+                    file_format: Some(FORMAT_NAME.to_string()),
+                    path: self.path.clone(),
+                    metadata: Some(track::FormatMetadata::Flac(track::FlacMetadata {
+                        ..Default::default()
+                    })),
                     ..Default::default()
                 };
                 hydrate(&t, &mut tk);
@@ -70,6 +77,12 @@ fn hydrate(t: &Tag, tk: &mut track::Track) {
         match b {
             Block::StreamInfo(si) => si_hydrate(si, tk),
             Block::VorbisComment(vc) => vorbis_hydrate(&vc, tk),
+            // Block::SeekTable(st) => println!("{:?}", st),
+            // Block::CueSheet(cs) => println!("CueSheet: {:?}", cs),
+            // Block::Application(ap) => println!("Application: {:?}", ap),
+            // Block::Padding(pd) => println!("Padding: {:?}", pd),
+            // Block::Picture(p) => println!("{:?}", p),
+            // Block::Unknown(b) => println!("Unknown {:?}", b),
             _ => (), // TODO(jdr) should figure out how to attach arbitrary data to a track.
         }
     }
@@ -107,31 +120,36 @@ fn vorbis_hydrate(vc: &metaflac::block::VorbisComment, tk: &mut track::Track) {
         }
     }
 
-    // copy the comments in.
+    // Fill in the flac metadata.
     // TODO: Is there a more efficient way to do this?
-    for (k, v) in &vc.comments {
-        tk.comments.insert(k.clone(), v.clone());
-    }
+    // Can we hand ownership over?
+    if let Some(md) = &mut tk.metadata {
+        if let track::FormatMetadata::Flac(md) = md {
+            for (k, v) in &vc.comments {
+                md.comments.insert(k.clone(), v.clone());
+            }
 
-    // Check for alternate
-    tk.track_total = vc.total_tracks();
-    if tk.track_total.is_none() {
-        if let Some(tt) = tk.comments.get(ALT_TOTALTRACKS) {
-            if let Ok(t_total) = tt[0].parse::<u32>() {
-                tk.track_total = Some(t_total);
+            // Check for alternate
+            tk.track_total = vc.total_tracks();
+            if tk.track_total.is_none() {
+                if let Some(tt) = md.comments.get(ALT_TOTALTRACKS) {
+                    if let Ok(t_total) = tt[0].parse::<u32>() {
+                        tk.track_total = Some(t_total);
+                    }
+                }
+            }
+
+            // Now fill from comments.
+            if let Some(dt) = md.comments.get(DISCTOTAL) {
+                if let Ok(d_total) = dt[0].parse::<u32>() {
+                    tk.disk_total = Some(d_total);
+                }
+            }
+            if let Some(dn) = md.comments.get(DISCNUMBER) {
+                if let Ok(d_num) = dn[0].parse::<u32>() {
+                    tk.disk_number = Some(d_num);
+                }
             }
         }
-    }
-
-    // Now fill from comments.
-    if let Some(dt) = tk.comments.get(DISCTOTAL) {
-        if let Ok(d_total) = dt[0].parse::<u32>() {
-            tk.disk_total = Some(d_total);
-        }
-    }
-    if let Some(dn) = tk.comments.get(DISCNUMBER) {
-        if let Ok(d_num) = dn[0].parse::<u32>() {
-            tk.disk_number = Some(d_num);
-        }
-    }
+    };
 }

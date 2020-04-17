@@ -17,10 +17,21 @@ const NONE_SHORT: &str = "-";
 /// lists files and audio files separately dispaying
 /// metadata of the audio file if found.
 pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
-  let mut p = path::PathBuf::from(fname);
+  let mut p;
+  if fname == "" {
+    p = env::current_dir()?;
+  } else {
+    p = path::PathBuf::from(fname);
+  }
 
   let album;
   let files;
+  if !p.as_path().exists() {
+    return Err(Box::new(std::io::Error::new(
+      std::io::ErrorKind::NotFound,
+      format!("File not found: {}", p.as_path().display()),
+    )));
+  }
   if p.is_file() {
     let (tracks, f) = track::files_from(p)?;
     album = album::album_from_tracks(tracks);
@@ -83,7 +94,7 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
               format_duration(&f.duration(), true),
               format!("{} KHz", (f.sample_rate as f64 / 1000.0)),
               format!("{} bits", f.bits_per_sample.to_string()),
-              t.file_format,
+              t.file_format.as_ref().unwrap_or(&NONE_SHORT.to_string()),
               pn,
             ]);
           }
@@ -92,10 +103,11 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
               t.tracks_display(),
               t.title.as_ref().unwrap_or(&NONE_SHORT.to_string()),
               format_duration(&f.duration, true),
+              format!("{} ", f.sample_rate.to_string()),
               format!("{:>3} Kbps", f.bitrate.to_string()),
               f.version_string(),
               f.layer_string(),
-              t.file_format,
+              t.file_format.as_ref().unwrap_or(&NONE_SHORT.to_string()),
               pn,
             ]);
           }
@@ -107,20 +119,19 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
           NONE_SHORT.to_string(),
           NONE_SHORT.to_string(),
           NONE_SHORT.to_string(),
-          NONE_SHORT.to_string(),
-          t.file_format,
+          t.file_format.as_ref().unwrap_or(&NONE_SHORT.to_string()),
           pn,
         ]);
       }
     }
     table.printstd();
+  }
 
-    // let (tracks, files) = track::files_from(path)?;
-    if files.len() > 0 {
-      println!("\nFiles:");
-      for f in files {
-        println!("{}", path_file_name(&f));
-      }
+  // let (tracks, files) = track::files_from(path)?;
+  if files.len() > 0 {
+    println!("\nFiles:");
+    for f in files {
+      println!("{}", path_file_name(&f));
     }
   }
 
@@ -173,6 +184,10 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
 
   // Basic track info.
   tes.push(Te("File", path_file_name(&tk.path)));
+  tes.push(Te(
+    "File Format",
+    tk.file_format.unwrap_or(NONE_SHORT.to_string()),
+  ));
   tes.push(Te("Artist", tk.artist.unwrap_or(NONE_SHORT.to_string())));
   tes.push(Te("Album", tk.album.unwrap_or(NONE_SHORT.to_string())));
   tes.push(Te("Title", tk.title.unwrap_or(NONE_SHORT.to_string())));
@@ -200,6 +215,7 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
   // Codec Specific
   if let Some(c) = tk.format {
     match c {
+      // PCM
       track::CodecFormat::PCM(sf) => {
         tes.push(Te(
           "Sample Rate",
@@ -216,10 +232,16 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
         tes.push(Te("Channels", sf.channels.to_formatted_string(&Locale::en)));
         tes.push(Te("Duration", format_duration(&sf.duration(), false)));
       }
+
+      // MPEG
       track::CodecFormat::MPEG(f) => {
-        tes.push(Te("Bitrate", f.bitrate.to_string()));
         tes.push(Te("Version", f.version_string()));
         tes.push(Te("Layer", f.layer_string()));
+        tes.push(Te("Bitrate", format!("{} kbps", f.bitrate.to_string())));
+        tes.push(Te(
+          "Sample Rate",
+          format!("{} KHz", f.sample_rate.to_formatted_string(&Locale::en)),
+        ));
       }
     }
   }
@@ -229,30 +251,77 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
   print_te_list(tes);
   println!();
 
-  // Display Comments
-  println!("Metadata");
-  let mut table = Table::new();
-  table.set_format(*FORMAT_CLEAN);
-  table.add_row(row!["Key", "Value"]);
-  let mut vs: Vec<_> = tk.comments.iter().collect();
-  vs.sort();
-  for (k, v) in vs {
-    table.add_row(row![k, v[0]]);
-    let mut i = 1;
-    while i < v.len() {
-      table.add_row(row!["", v[i]]);
-      i = i + 1;
+  // Display Metadata.
+  if let Some(md) = tk.metadata {
+    match md {
+      track::FormatMetadata::Flac(fmd) => {
+        println!("Metadata");
+        let mut table = Table::new();
+        table.set_format(*FORMAT_CLEAN);
+        table.add_row(row!["Key", "Value"]);
+        let mut vs: Vec<_> = fmd.comments.iter().collect();
+        vs.sort();
+        for (k, v) in vs {
+          table.add_row(row![k, v[0]]);
+          let mut i = 1;
+          while i < v.len() {
+            table.add_row(row!["", v[i]]);
+            i = i + 1;
+          }
+          table.printstd();
+        }
+      }
+
+      track::FormatMetadata::ID3(imd) => {
+        println!("Metadata");
+
+        println!("\nText");
+        if imd.text.len() > 0 {
+          let mut table = Table::new();
+          table.set_format(*FORMAT_CLEAN);
+          table.add_row(row!["Key", "Value"]);
+          let mut vs: Vec<_> = imd.text.iter().collect();
+          vs.sort();
+          for (k, v) in vs {
+            table.add_row(row![k, v[0]]);
+            let mut i = 1;
+            while i < v.len() {
+              table.add_row(row!["", v[i]]);
+              i = i + 1;
+            }
+          }
+          table.printstd();
+        } else {
+          println!("No text.");
+        }
+
+        println!("\nComments");
+        if imd.comments.len() > 0 {
+          let mut table = Table::new();
+          table.set_format(*FORMAT_CLEAN);
+          table.add_row(row!["Key", "Lang", "Description", "Text"]);
+          let mut vs: Vec<_> = imd.comments.iter().collect();
+          vs.sort();
+          for (k, v) in vs {
+            table.add_row(row![k, v[0].0, v[0].1, v[0].2]);
+            let mut i = 1;
+            while i < v.len() {
+              table.add_row(row!["", v[0].0, v[0].1, v[0].2]);
+              i = i + 1;
+            }
+          }
+          table.printstd();
+        } else {
+          println!("No Comments.")
+        }
+      }
     }
   }
-  table.printstd();
 
   Ok(())
 }
 
 // UTIL
-const PCM_LIST_TITLES: [&str; 7] = [
-  "Track", "Title", "Duration", "Rate", "Depth", "Format", "File",
-];
 
 fn title_row(f: &Option<track::CodecFormat>) -> Row {
   if let Some(c) = f {
@@ -261,9 +330,13 @@ fn title_row(f: &Option<track::CodecFormat>) -> Row {
       track::CodecFormat::MPEG(_) => mpeg_title_row(),
     }
   } else {
-    Row::empty()
+    pcm_title_row()
   }
 }
+
+const PCM_LIST_TITLES: [&str; 7] = [
+  "Track", "Title", "Duration", "Rate", "Depth", "Format", "File",
+];
 
 fn pcm_title_row() -> Row {
   let mut r = Row::empty();
@@ -273,8 +346,16 @@ fn pcm_title_row() -> Row {
   r
 }
 
-const MPEG_LIST_TITLES: [&str; 8] = [
-  "Track", "Title", "Duration", "Bitrate", "Version", "Layer", "Format", "File",
+const MPEG_LIST_TITLES: [&str; 9] = [
+  "Track",
+  "Title",
+  "Duration",
+  "Sample Rate",
+  "Bitrate",
+  "Version",
+  "Layer",
+  "Format",
+  "File",
 ];
 
 fn mpeg_title_row() -> Row {
@@ -309,5 +390,9 @@ fn path_file_name(p: &path::PathBuf) -> String {
     Some(f) => f,
     None => p.as_path().as_os_str(),
   };
-  return pn.to_string_lossy().into_owned();
+  let mut ps = pn.to_string_lossy().into_owned();
+  if p.as_path().is_dir() {
+    ps += "/";
+  }
+  return ps;
 }

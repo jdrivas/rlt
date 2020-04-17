@@ -24,16 +24,49 @@ pub struct Config {
 }
 
 /// Top level interface to run the command and return an error.
+/// Run will parse the command line argument and run execute the appropriate command.
+/// If there are no commands run will assume and execute a list command on the current directory.
+/// If the command given is not a valid command, run will assume a list command
+/// on the first argument provided.
 pub fn run(c: Config) -> Result<(), Box<dyn Error>> {
+  // if env::args().len() > 1 {
   match AppCmds::from_iter_safe(&env::args().collect::<Vec<String>>()[1..]) {
     Ok(mut opt) => {
       opt.history_path = c.history_path;
-      parse_app(opt).map(|_a| ())? // Eat the return and publish ok.
+      parse_app(opt).map(|_a| ())? // Eat the return and return an ok.
     }
-    Err(e) => eprintln!("Top: {}", e),
+    Err(e) => match e.kind {
+      // Bad command, try to run a List
+      clap::ErrorKind::MissingArgumentOrSubcommand | clap::ErrorKind::UnknownArgument => {
+        let p;
+        if env::args().len() > 1 {
+          p = path::PathBuf::from(&env::args().nth(1).unwrap());
+        } else {
+          p = env::current_dir()?;
+        }
+        if p.exists() {
+          parse_app(AppCmds {
+            history_path: None,
+            config: "".to_string(),
+            subcmd: RootSubcommand::InteractiveSubcommand(InteractiveCommands::List(Path {
+              path: vec![p.as_path().to_str().unwrap().to_string()],
+            })),
+          })?;
+        } else {
+          // File doesn't exist so say so and print help.
+          eprintln!("File not found: \"{}\"\n", p.as_path().display());
+          AppCmds::clap().write_long_help(&mut std::io::stderr())?;
+        }
+      }
+      // Not an unknown command, so print the error message.
+      _ => eprintln!("{:?}", e),
+    },
   }
+
   Ok(())
 }
+
+// Command Parse Tree definition.
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "cli", version = "0.0.1", setting(AppSettings::NoBinaryName))]
@@ -51,9 +84,10 @@ struct AppCmds {
 
 #[derive(StructOpt, Debug)]
 enum RootSubcommand {
+  /// Run in interactive mode
   Interactive(Path),
   #[structopt(flatten)]
-  InteractiveSubCommand(InteractiveCommands),
+  InteractiveSubcommand(InteractiveCommands),
 }
 
 #[derive(StructOpt, Debug)]
@@ -69,7 +103,7 @@ struct ICmds {
 
 #[derive(StructOpt, Debug)]
 enum InteractiveCommands {
-  /// End the program.
+  /// End the program
   #[structopt(name = "quit")]
   Quit,
 
@@ -97,6 +131,7 @@ struct Path {
 // for commands from InteractiveCommands.
 fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
   match opt.subcmd {
+    // Go into interactive mode.
     RootSubcommand::Interactive(p) => {
       // If a directory is given, CD to it.
       // TODO: if a file is given, cd to the directory of the file?
@@ -109,7 +144,8 @@ fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
       readloop(opt.history_path)?;
       Ok(ParseResult::Exit)
     }
-    RootSubcommand::InteractiveSubCommand(c) => parse_interactive(c),
+    // Just execute the given command.
+    RootSubcommand::InteractiveSubcommand(c) => parse_interactive(c),
   }
 }
 

@@ -1,16 +1,18 @@
 use crate::flac;
-// use crate::id3;
+use crate::id3;
 use crate::mp3;
 use crate::wav;
 
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs::File;
+// use std::fs::File;
 // use std::io::SeekFrom;
-use std::io::{Read, Seek};
+// use std::io::{Read, Seek};
 use std::path;
 use std::time::Duration;
 use std::vec::Vec;
+
+// CodecFormats
 
 #[derive(Default, Debug)]
 pub struct PCMFormat {
@@ -33,6 +35,7 @@ impl PCMFormat {
 #[derive(Debug)]
 pub struct MPEGFormat {
   pub bitrate: u16,
+  pub sample_rate: u16,
   pub version: MPVersion,
   pub layer: MPLayer,
   pub duration: Duration,
@@ -84,11 +87,31 @@ pub enum CodecFormat {
   MPEG(MPEGFormat),
 }
 
+// Metadata
+#[derive(Debug)]
+pub enum FormatMetadata {
+  Flac(FlacMetadata),
+  ID3(ID3Metadata),
+}
+
+#[derive(Debug, Default)]
+pub struct FlacMetadata {
+  pub comments: HashMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Default)]
+pub struct ID3Metadata {
+  pub text: HashMap<String, Vec<String>>,
+  pub comments: HashMap<String, Vec<(String, String, String)>>,
+}
+
+// Track Definition
+
 // #[derive(Default, Debug)]
 #[derive(Debug)]
 pub struct Track {
   pub path: path::PathBuf,
-  pub file_format: String,
+  pub file_format: Option<String>,
   pub title: Option<String>,
   pub artist: Option<String>,
   pub album: Option<String>,
@@ -96,15 +119,16 @@ pub struct Track {
   pub track_total: Option<u32>,
   pub disk_number: Option<u32>,
   pub disk_total: Option<u32>,
-  pub comments: HashMap<String, Vec<String>>,
+  // pub comments: HashMap<String, Vec<String>>,
   pub format: Option<CodecFormat>,
+  pub metadata: Option<FormatMetadata>,
 }
 
 impl Default for Track {
   fn default() -> Self {
     Track {
       path: path::PathBuf::default(),
-      file_format: String::default(),
+      file_format: None,
       title: None,
       artist: None,
       album: None,
@@ -113,7 +137,8 @@ impl Default for Track {
       disk_number: None,
       disk_total: None,
       format: None,
-      comments: HashMap::new(),
+      metadata: None,
+      // comments: HashMap::new(),
     }
   }
 }
@@ -190,6 +215,7 @@ pub fn files_from(
 }
 
 pub trait Decoder {
+  fn name(&self) -> &str;
   fn is_candidate(&mut self) -> Result<bool, Box<dyn Error>>;
   fn get_track(&mut self) -> Result<Option<Track>, Box<dyn Error>>;
   // fn is_candidate<R: Read + Seek>(r: R) -> Result<bool, Box<dyn Error>>;
@@ -205,16 +231,18 @@ pub fn get_track(p: &path::PathBuf) -> Result<Option<Track>, Box<dyn Error>> {
   // This wants a Read + Seek trait implementation.
   // Some of the decoders though, only take path to create.
   // This is almost certainly gotten around by re-writting their
-  // helper functions ourselves.
+  // helper functions.
 
-  // Order matters! Codecs will be tried in order
+  // Order matters! Codecs will be tried in order,
   // first match with is_candidate wins.
   let mut decoders: Vec<Box<dyn Decoder>> = Vec::new();
-  decoders.push(Box::new(flac::Flac::new(&p)));
-  decoders.push(Box::new(wav::Wav::new(&p)));
-  decoders.push(Box::new(mp3::Mp3::new(&p)));
+  decoders.insert(decoders.len(), Box::new(flac::Flac::new(&p)));
+  decoders.insert(decoders.len(), Box::new(wav::Wav::new(&p)));
+  decoders.insert(decoders.len(), Box::new(mp3::Mp3::new(&p))); // this thing doesn't really work yet.
+  decoders.insert(decoders.len(), Box::new(id3::Id3::new(&p)));
 
   for d in &mut decoders {
+    // eprintln!("{}: trying decoder: {}", p.as_path().display(), d.name());
     if d.is_candidate()? {
       return Ok(d.get_track()?);
     }
