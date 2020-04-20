@@ -1,11 +1,9 @@
-use crate::flac;
-use crate::id3;
-use crate::mp3;
-use crate::wav;
+use crate::file;
+use crate::file::{Decoder, FileFormat};
 
 use std::collections::HashMap;
 use std::error::Error;
-// use std::fs::File;
+use std::fs::File;
 // use std::io::SeekFrom;
 // use std::io::{Read, Seek};
 use std::path;
@@ -214,39 +212,21 @@ pub fn files_from(
   Ok((tracks, files))
 }
 
-pub trait Decoder {
-  fn name(&self) -> &str;
-  fn is_candidate(&mut self) -> Result<bool, Box<dyn Error>>;
-  fn get_track(&mut self) -> Result<Option<Track>, Box<dyn Error>>;
-  // fn is_candidate<R: Read + Seek>(r: R) -> Result<bool, Box<dyn Error>>;
-  // fn get_track<R: Read + Seek>(r: R) -> Result<Option<Track>, Box<dyn Error>>;
-}
-
 /// Get a track from a file specified by path.
 /// This will try to read the file's meta-data against any installed
 /// decoders. Currently we look at: Flac, ID3, and WAV.
 /// Working on mp4.
 pub fn get_track(p: &path::PathBuf) -> Result<Option<Track>, Box<dyn Error>> {
-  // TODO(jdr) This currently supports path only access.
-  // This wants a Read + Seek trait implementation.
-  // Some of the decoders though, only take path to create.
-  // This is almost certainly gotten around by re-writting their
-  // helper functions.
+  let file = File::open(p.as_path())?;
 
-  // Order matters! Codecs will be tried in order,
-  // first match with is_candidate wins.
-  let mut decoders: Vec<Box<dyn Decoder>> = Vec::new();
-  decoders.insert(decoders.len(), Box::new(flac::Flac::new(&p)));
-  decoders.insert(decoders.len(), Box::new(wav::Wav::new(&p)));
-  decoders.insert(decoders.len(), Box::new(mp3::Mp3::new(&p))); // this thing doesn't really work yet.
-  decoders.insert(decoders.len(), Box::new(id3::Id3::new(&p)));
-
-  for d in &mut decoders {
-    // eprintln!("{}: trying decoder: {}", p.as_path().display(), d.name());
-    if d.is_candidate()? {
-      return Ok(d.get_track()?);
+  if let Some(f) = file::identify(&file)? {
+    match f {
+      FileFormat::Flac(mut d) => return Ok(d.get_track(&file)?),
+      FileFormat::WAV(mut d) => return Ok(d.get_track(&file)?),
+      FileFormat::MP3(mut d) => return Ok(d.get_track(&file)?),
+      FileFormat::ID3(mut d) => return Ok(d.get_track(&file)?),
+      _ => return Ok(None),
     }
   }
-
   return Ok(None);
 }

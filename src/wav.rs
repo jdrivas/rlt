@@ -1,65 +1,48 @@
+use crate::file::{Decoder, FileFormat};
 use crate::track;
 use hound;
 use std::error::Error;
-use std::fs::File;
-use std::io::{Seek, SeekFrom};
-use std::path::PathBuf;
+use std::io::{Read, Seek};
 
 #[derive(Default, Debug)]
-pub struct Wav {
-    path: PathBuf,
-    file: Option<File>,
-}
+pub struct Wav;
 
-impl Wav {
-    pub fn new(p: &PathBuf) -> Wav {
-        return Wav {
-            path: p.clone(),
-            ..Default::default()
-        };
+const RIFF_HEADER: &[u8] = b"RIFF";
+const WAVE_HEADER: &[u8] = b"WAVE";
+pub fn identify(b: &[u8]) -> Option<FileFormat> {
+    if b.len() >= 12 {
+        if &b[0..4] == RIFF_HEADER {
+            match &b[8..12] {
+                b if b == WAVE_HEADER => {
+                    return Some(FileFormat::WAV(Wav {
+                        ..Default::default()
+                    }))
+                }
+                _ => return None,
+            }
+        }
     }
+    return None;
 }
 
 const FORMAT_NAME: &str = "wav";
 
 //
-impl track::Decoder for Wav {
+impl Decoder for Wav {
     fn name(&self) -> &str {
         FORMAT_NAME
     }
-    /// Determine if the file is a wav file.
-    /// /// This will return the file to seek(SeekFrom::Start(0)), as
-    /// if it had not been read.
-    fn is_candidate(&mut self) -> Result<bool, Box<dyn Error>> {
-        if self.file.is_none() {
-            self.file = Some(File::open(&self.path)?);
-        }
-        let f = self.file.as_mut().unwrap();
-
-        if let Ok(_) = hound::read_wave_header(f) {
-            f.seek(SeekFrom::Start(0))?;
-            return Ok(true);
-        } else {
-            f.seek(SeekFrom::Start(0))?;
-            return Ok(false);
-        }
-    }
-
     /// Create a track with as much information as you have from the file.
-    /// Wav files only provide basic format information, so really onlyl
+    /// Wav files only provide basic format information, so really only
     /// track::SampleFormat.
     /// Thie means you need to set the title (and anything else for that matter
     /// on your own.
-    fn get_track(&mut self) -> Result<Option<track::Track>, Box<dyn Error>> {
-        if self.file.is_none() {
-            self.file = Some(File::open(&self.path)?);
-        }
-        let f = self.file.as_mut().unwrap();
-
-        let wr = hound::WavReader::new(f)?;
+    /// TODO(jdr) fill out the rest of the wave spec (float etc).
+    fn get_track(&mut self, r: impl Read + Seek) -> Result<Option<track::Track>, Box<dyn Error>> {
+        let wr = hound::WavReader::new(r)?;
         let spec = wr.spec();
         let mut tk = track::Track {
-            path: self.path.clone(),
+            // path: self.path.clone(),
             file_format: Some(FORMAT_NAME.to_string()),
             ..Default::default()
         };

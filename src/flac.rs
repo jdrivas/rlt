@@ -1,9 +1,9 @@
+use crate::file;
+use crate::file::FileFormat;
 use crate::track;
 use metaflac::{Block, Tag};
 use std::error::Error;
-use std::fs::File;
-// use std::io::{Read, Seek};
-use std::path::PathBuf;
+use std::io::{Read, Seek};
 
 const DISCTOTAL: &str = "DISCTOTAL";
 const DISCNUMBER: &str = "DISCNUMBER";
@@ -12,48 +12,42 @@ const DISCNUMBER: &str = "DISCNUMBER";
 const ALT_TOTALTRACKS: &str = "TRACKTOTAL";
 
 #[derive(Default, Debug)]
-pub struct Flac {
-    path: PathBuf,
-    file: Option<File>,
-}
+pub struct Flac;
 
-impl Flac {
-    pub fn new(p: &PathBuf) -> Flac {
-        return Flac {
-            path: p.clone(),
-            ..Default::default()
-        };
+const FLAC_HEADER: &[u8] = b"fLaC";
+pub fn identify(b: &[u8]) -> Option<FileFormat> {
+    if b.len() >= 4 {
+        if &b[0..4] == FLAC_HEADER {
+            return Some(FileFormat::Flac(Flac {
+                ..Default::default()
+            }));
+        }
     }
+    return None;
 }
 
 const FORMAT_NAME: &str = "flac";
 
-impl track::Decoder for Flac {
+impl file::Decoder for Flac {
     fn name(&self) -> &str {
         FORMAT_NAME
-    }
-    /// Determine if the file is a Flac file.
-    /// /// This will return the file to seek(SeekFrom::Start(0)), as
-    /// if it had not been read.
-    fn is_candidate(&mut self) -> Result<bool, Box<dyn Error>> {
-        if self.file.is_none() {
-            self.file = Some(File::open(&self.path)?);
-        }
-        return Ok(Tag::is_candidate(self.file.as_mut().unwrap()));
     }
 
     /// Create a track with as much information as you have from the file.
     /// Note, path is not set here, it has to be set separately - path information
     /// is not passed in this call.
-    fn get_track(&mut self) -> Result<Option<track::Track>, Box<dyn Error>> {
-        if self.file.is_none() {
-            self.file = Some(File::open(&self.path)?);
-        }
-        match Tag::read_from(self.file.as_mut().unwrap()) {
+    fn get_track(
+        &mut self,
+        mut r: impl Read + Seek,
+    ) -> Result<Option<track::Track>, Box<dyn Error>> {
+        // if self.file.is_none() {
+        //     self.file = Some(File::open(&self.path)?);
+        // }
+        // match Tag::read_from(self.file.as_mut().unwrap()) {
+        match Tag::read_from(&mut r) {
             Ok(t) => {
                 let mut tk = track::Track {
                     file_format: Some(FORMAT_NAME.to_string()),
-                    path: self.path.clone(),
                     metadata: Some(track::FormatMetadata::Flac(track::FlacMetadata {
                         ..Default::default()
                     })),

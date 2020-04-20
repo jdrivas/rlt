@@ -3,6 +3,7 @@ extern crate prettytable;
 pub mod album;
 pub mod cmd;
 pub mod display;
+pub mod file;
 pub mod flac;
 pub mod id3;
 pub mod mp3;
