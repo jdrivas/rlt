@@ -1,19 +1,24 @@
-// use crate::track;
-// use crate::file;
+use crate::file;
 use crate::file::FileFormat;
+use crate::track;
 // use mp4parse;
-// use std::error::Error;
-// use std::io::{Read, Seek};
+use std::error::Error;
+use std::io::{Read, Seek};
 
 pub struct Mp4;
 
+const FTYP_HEADER: &[u8] = b"ftype";
+const M4A_HEADER: &[u8] = b"M4A";
+// const M4B_HEADER: &[u8] = b"M4B";
+// const M4P_HEADER: &[u8] = b"M4P";
+
 pub fn identify(b: &[u8]) -> Option<FileFormat> {
     if b.len() >= 12 {
-        if &b[4..8] == b"ftyp" {
+        if &b[4..8] == FTYP_HEADER {
             match &b[8..11] {
-                b if b == b"M4A" => return Some(FileFormat::MP4A),
-                b if b == b"M4B" => return Some(FileFormat::MP4B),
-                b if b == b"M4P" => return Some(FileFormat::MP4P),
+                b if b == M4A_HEADER => return Some(FileFormat::MP4A(Mp4 {})),
+                // b if b == M4B_HEADER => return Some(FileFormat::MP4B),
+                // b if b == M4P_HEADER => return Some(FileFormat::MP4P),
                 _ => return None,
             }
         }
@@ -21,28 +26,17 @@ pub fn identify(b: &[u8]) -> Option<FileFormat> {
 
     return None;
 }
-// impl track::Decoder for Mp4 {
-//     fn is_candidate<R: Read + Seek>(_r: R) -> Result<bool, Box<dyn Error>> {
-//         return Ok(false);
-//         //     let mut ctxt = mp4parse::MediaContext::new();
-//         //     let mut r = r;
-//         //     match mp4parse::read_mp4(&mut r, &mut ctxt) {
-//         //         Ok(()) => {
-//         //             println!("{:?}", ctxt);
-//         //             return Ok(false);
-//         //         }
-//         //         Err(e) => {
-//         //             eprintln!("Mp4 - {:?}", e);
-//         //             eprintln!("{:?}", ctxt);
-//         //             return Ok(false);
-//         //         }
-//         //     }
-//     }
 
-//     fn get_track<R: Read + Seek>(_r: R) -> Result<Option<track::Track>, Box<dyn Error>> {
-//         let tk = track::Track {
-//             ..Default::default()
-//         };
-//         return Ok(Some(tk));
-//     }
-// }
+const FORMAT_NAME: &str = "mpeg-4";
+impl file::Decoder for Mp4 {
+    fn name(&self) -> &str {
+        FORMAT_NAME
+    }
+
+    fn get_track(&mut self, _r: impl Read + Seek) -> Result<Option<track::Track>, Box<dyn Error>> {
+        let _tk = track::Track {
+            ..Default::default()
+        };
+        return Ok(None);
+    }
+}

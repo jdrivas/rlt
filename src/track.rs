@@ -219,13 +219,15 @@ pub fn files_from(
 pub fn get_track(p: &path::PathBuf) -> Result<Option<Track>, Box<dyn Error>> {
   let file = File::open(p.as_path())?;
 
+  // Still not happy with this.
+  // Need to figure out how to use the fact that these
+  // are all file::Decoders.
   if let Some(f) = file::identify(&file)? {
     match f {
       FileFormat::Flac(mut d) => return Ok(d.get_track(&file)?),
+      FileFormat::MP4A(mut d) => return Ok(d.get_track(&file)?),
       FileFormat::WAV(mut d) => return Ok(d.get_track(&file)?),
       FileFormat::MP3(mut d) => return Ok(d.get_track(&file)?),
-      FileFormat::ID3(mut d) => return Ok(d.get_track(&file)?),
-      _ => return Ok(None),
     }
   }
   return Ok(None);

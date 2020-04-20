@@ -1,5 +1,6 @@
 use crate::file;
 use crate::track;
+use id3::Tag;
 use mp3_metadata;
 
 // use puremp3;
@@ -7,13 +8,13 @@ use mp3_metadata;
 use std::error::Error;
 use std::time::Duration;
 // use std::fs::File;
-use std::io::{Read, Seek};
+use std::io::{Read, Seek, SeekFrom};
 // use std::path::PathBuf;
 
 #[derive(Default, Debug)]
 pub struct Mp3;
 
-// TODO(jdr): Tis idenitify protocol wants some automatic way
+// TODO(jdr): This idenitify protocol wants some automatic way
 // of either determining the number of bytes it needs or to
 // fail reasonablly if the buffer isn't big enough.
 // TODO(jdr): Add ID3 tag version information.
@@ -125,6 +126,49 @@ impl file::Decoder for Mp3 {
             };
             tk.format = Some(track::CodecFormat::MPEG(mf));
         };
+
+        // Now use the ID3 package to get the complete set of ID3 tags from
+        // the file.
+        r.seek(SeekFrom::Start(0))?;
+        let tag = Tag::read_from(r)?;
+
+        let omd;
+        if tag.frames().count() > 0 {
+            let mut md = track::ID3Metadata {
+                ..Default::default()
+            };
+
+            for fr in tag.frames() {
+                // eprintln!("Frame: {:?}", fr);
+                match fr.content() {
+                    id3::Content::Text(s) => {
+                        // println!("Text: {:?}: {:?}", fr.id(), s);
+                        md.text
+                            .entry(fr.id().to_string())
+                            .and_modify(|v| v.push(s.clone()))
+                            .or_insert(vec![s.clone()]);
+                        // eprintln!("md: {:?}", md);
+                    }
+                    id3::Content::Comment(c) => {
+                        md.comments
+                            .entry(fr.id().to_string())
+                            .and_modify(|v| {
+                                v.push((c.lang.clone(), c.description.clone(), c.text.clone()))
+                            })
+                            .or_insert(vec![(
+                                c.lang.clone(),
+                                c.description.clone(),
+                                c.text.clone(),
+                            )]);
+                    }
+                    _ => (),
+                }
+            }
+            omd = Some(track::FormatMetadata::ID3(md));
+        } else {
+            omd = None;
+        }
+        tk.metadata = omd;
 
         return Ok(Some(tk));
     }
