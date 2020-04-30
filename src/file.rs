@@ -48,14 +48,14 @@ pub fn identify(mut r: impl Read + Seek) -> Result<Option<FileFormat>, std::io::
     // If a decoder retruns a valid result, we don't visit any more of them.
     // If it's possible for a decoder to handle more than one file type
     // then order will matter here.
-    let is = [
+    let ids = [
         flac::identify,
         mp4::identify,
         wav::identify,
         mp3::identify,
         // id3::identify,
     ];
-    for id in &is {
+    for id in &ids {
         match id(&buf) {
             Some(ff) => return Ok(Some(ff)),
             None => (),
