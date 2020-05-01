@@ -70,11 +70,21 @@ impl file::Decoder for Mp3 {
         }
 
         for oi in &md.optional_info {
-            tk.track_number = oi
-                .track_number
-                .as_ref()
-                .map_or(None, |v| Some(v.parse::<u32>().unwrap()));
-            // println!("Time: {:?}", oi.length)
+            tk.track_number = oi.track_number.as_ref().map_or(None, |v| {
+                let sp: Vec<&str> = v.split('/').collect();
+                if sp.len() > 1 {
+                    tk.track_total = match sp[1].parse::<u32>() {
+                        Ok(n) => Some(n),
+                        Err(_) => None,
+                    };
+                };
+
+                // return through the map.
+                match sp[0].parse::<u32>() {
+                    Ok(n) => Some(n),
+                    Err(_) => None,
+                }
+            });
         }
 
         if md.frames.len() > 0 {
@@ -142,7 +152,7 @@ impl file::Decoder for Mp3 {
                 // eprintln!("Frame: {:?}", fr);
                 match fr.content() {
                     id3::Content::Text(s) => {
-                        // println!("Text: {:?}: {:?}", fr.id(), s);
+                        update_track(&mut tk, &fr, s);
                         md.text
                             .entry(fr.id().to_string())
                             .and_modify(|v| v.push(s.clone()))
@@ -171,5 +181,41 @@ impl file::Decoder for Mp3 {
         tk.metadata = omd;
 
         return Ok(Some(tk));
+    }
+}
+
+// static DISK_TAG: &str = "TPOS";
+// TODO(jdr): Use generics here.
+fn parse_to_opt_u32(s: &str) -> Option<u32> {
+    match s.parse::<u32>() {
+        Ok(n) => Some(n),
+        Err(_) => None,
+    }
+}
+
+fn update_track(tk: &mut track::Track, fr: &id3::Frame, s: &str) {
+    let sp: Vec<&str> = s.split('/').collect();
+    match fr.id() {
+        "TPOS" => {
+            if sp.len() > 1 {
+                if tk.disk_total == None {
+                    tk.disk_total = parse_to_opt_u32(sp[1]);
+                }
+            }
+            if tk.disk_number == None {
+                tk.disk_number = parse_to_opt_u32(sp[0]);
+            }
+        }
+        "TRCK" => {
+            if sp.len() > 1 {
+                if tk.track_total == None {
+                    tk.track_total = parse_to_opt_u32(sp[1]);
+                }
+            }
+            if tk.track_number == None {
+                tk.track_number = parse_to_opt_u32(sp[0]);
+            }
+        }
+        _ => (),
     }
 }
