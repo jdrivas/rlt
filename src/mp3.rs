@@ -73,17 +73,11 @@ impl file::Decoder for Mp3 {
             tk.track_number = oi.track_number.as_ref().map_or(None, |v| {
                 let sp: Vec<&str> = v.split('/').collect();
                 if sp.len() > 1 {
-                    tk.track_total = match sp[1].parse::<u32>() {
-                        Ok(n) => Some(n),
-                        Err(_) => None,
-                    };
+                    tk.track_total = parse_to_opt(sp[1]);
                 };
 
                 // return through the map.
-                match sp[0].parse::<u32>() {
-                    Ok(n) => Some(n),
-                    Err(_) => None,
-                }
+                parse_to_opt(sp[0])
             });
         }
 
@@ -184,10 +178,8 @@ impl file::Decoder for Mp3 {
     }
 }
 
-// static DISK_TAG: &str = "TPOS";
-// TODO(jdr): Use generics here.
-fn parse_to_opt_u32(s: &str) -> Option<u32> {
-    match s.parse::<u32>() {
+fn parse_to_opt<T: std::str::FromStr>(s: &str) -> Option<T> {
+    match s.parse::<T>() {
         Ok(n) => Some(n),
         Err(_) => None,
     }
@@ -199,21 +191,53 @@ fn update_track(tk: &mut track::Track, fr: &id3::Frame, s: &str) {
         "TPOS" => {
             if sp.len() > 1 {
                 if tk.disk_total == None {
-                    tk.disk_total = parse_to_opt_u32(sp[1]);
+                    tk.disk_total = parse_to_opt(sp[1]);
                 }
             }
             if tk.disk_number == None {
-                tk.disk_number = parse_to_opt_u32(sp[0]);
+                tk.disk_number = parse_to_opt(sp[0]);
             }
         }
         "TRCK" => {
             if sp.len() > 1 {
                 if tk.track_total == None {
-                    tk.track_total = parse_to_opt_u32(sp[1]);
+                    tk.track_total = parse_to_opt(sp[1]);
                 }
             }
             if tk.track_number == None {
-                tk.track_number = parse_to_opt_u32(sp[0]);
+                tk.track_number = parse_to_opt(sp[0]);
+            }
+        }
+        "TALB" => {
+            if tk.album == None {
+                tk.album = Some(s.to_string());
+            }
+        }
+        // TODO(jdr): There is more to be done here figuring
+        // out what the best thing to display is.
+        // For example, we could combine these or add
+        // additional track enties to accomodate.
+        // Also: this will support the first TAG found
+        // and that's not entirely with the ID3 spec:
+        // https://id3.org/d3v2.3.0
+        // TODO(jdr): There are lots more relevant  ID3
+        // tags that could be applied to artist.
+        // Lead Artist
+        "TPE1" => {
+            if tk.artist == None {
+                tk.artist = Some(s.to_string());
+            }
+        }
+        // Band/Orchestra/Accopmaniment
+        "TPE2" => {
+            if tk.artist == None {
+                tk.artist = Some(s.to_string());
+            }
+        }
+        // Conductor
+        "TPE3" => {
+            if tk.artist == None {
+                tk.artist = Some(s.to_string());
             }
         }
         _ => (),
