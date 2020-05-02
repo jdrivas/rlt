@@ -128,7 +128,6 @@ impl file::Decoder for Mp4 {
     }
 }
 
-// const NMBOX: [u8;4] = [0xa, b'n',b'a', b'm' ]
 fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
     // Read in file type box.
 
@@ -171,21 +170,81 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
             }
             // FullBox with handler type eand name.
             b"hdlr" => {
-                let (vf, h_type, name) = read_hdlr(buf);
-                println!("\tversion/flags: {:?}", vf);
+                let (v, f, h_type, name) = read_hdlr(buf);
+                println!("\tversion : {:?}", v);
+                println!("\tflags: {:?}", f);
                 println!("\thandler_type: {:?}", from_utf8(&h_type)?);
                 println!("\tname: {:?}", name);
                 next = size - (8 + 4 + 4 + 4 + name.len() + 1);
             }
             [0xa9, b'n', b'a', b'm']
-            | [0xa9, b'A', b'R', b'T']
             | [0xa9, b'a', b'l', b'b']
+            | [0xa9, b'A', b'R', b'T']
+            | [0xa9, b'c', b'm', b't']
+            | [0xa9, b'd', b'a', b'y']
+            | [0xa9, b'g', b'e', b'n']
+            | [0xa9, b't', b'o', b'o']
+            | [0xa9, b'w', b'r', b't']
+            | b"covr"
+            | b"cpil"
+            | b"disk"
+            // | b"name"
+            | b"gnre"
+            | b"pgap"
+            | b"tmpo"
             | b"trkn" => {
+                let (v, f, data) = read_data_box(buf);
+                match data {
+                    DataBoxContent::Data(d) => match &b_type {
+                        b"disk" => {
+                            let disk = u16::from_be_bytes([d[2], d[3]]);
+                            let disks = u16::from_be_bytes([d[4], d[5]]);
+                            println!("\tDisk: {}", disk);
+                            println!("\tDisks: {}", disks);
+                            println!("\tContents: {:?}", d);
+                        }
+                        b"trkn" => {
+                            let track = u16::from_be_bytes([d[2], d[3]]);
+                            let tracks = u16::from_be_bytes([d[4], d[5]]);
+                            println!("\tTrack: {}", track);
+                            println!("\tTracks: {}", tracks);
+                            println!("\tContents: {:?}", d);
+                        }
+                        _ => {
+                            let mut pb = d.as_slice();
+                            if d.len() > 32 {
+                                pb = &d[0..32];
+                            }
+                            println!("\tDataBox::Data");
+                            println!("\tLength: {}", d.len());
+                            println!("\tContent: {:?}", pb);
+                        }
+                    },
+                    DataBoxContent::Text(s) => {
+                        println!("\tDataBoxContent::Text");
+                        println!("\tValue: {:?}", s);
+                    }
+                    DataBoxContent::Byte(b) => {
+                        println!("\tDataBoxContent::Byte");
+                        eprintln!("\tValue: {:?}", b);
+                    }
+                }
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#03x}", f, f);
+                next = 0;
+            }
+            | b"----" => {
+                let(mean, name, data) = read_apple_info_box(buf);
+                println!("\tApple Additional Info Box");
+                println!("\tMean Value: {:?}", mean);
+                println!("\tName Value: {:?}", name);
+                println!("\tValue: {:?}", data);
                 next = 0;
             }
             b"data" => {
-                let (vf, data) = read_data(buf, size);
-                println!("\tversion/flags: {:?}", vf);
+                let (v, f, data) = read_data(buf, size);
+                println!("\tversion: {:?}", v);
+                println!("\tflags: {:#010b} = {:024x}", f, f);
                 println!("\tContents: {:?}", data);
                 next = 0; //size - read;
             }
@@ -206,6 +265,7 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
         println!("\tNext is: {}", next);
         println!("\tRemaining is: {}", buf.remaining());
         println!("\tRemaining - Next: {}", buf.remaining() - next);
+
         if buf.remaining() <= next {
             break;
         }
@@ -238,6 +298,17 @@ fn read_box_header(buf: &mut impl Buf) -> (usize, [u8; 4]) {
     return (size, b_type);
 }
 
+// Reads 4 bytes
+// Return the top byte as the version
+// number in a u8.
+// Returns the bottom three bytes as the flags in a u32.
+fn read_version_flag(buf: &mut impl Buf) -> (u8, u32) {
+    let mut f = buf.get_u32();
+    // println!("V/F = {}", f);
+    let v = (f >> 28) as u8; // High byte is the version
+    f &= 0x00FFFFFF; // bottom three bytes are the flags.
+    return (v, f);
+}
 // Read an ftyp box contents (assume buff points directly passed the size and type.)
 // returns the major brand and the minor version.
 fn read_ftyp(buf: &mut impl Buf, size: usize) -> ([u8; 4], u32, Vec<[u8; 4]>) {
@@ -255,8 +326,8 @@ fn read_ftyp(buf: &mut impl Buf, size: usize) -> ([u8; 4], u32, Vec<[u8; 4]>) {
     return (brand, v, c_brands);
 }
 
-fn read_hdlr(buf: &mut impl Buf) -> (u32, [u8; 4], String) {
-    let vf = buf.get_u32();
+fn read_hdlr(buf: &mut impl Buf) -> (u8, u32, [u8; 4], String) {
+    let (v, f) = read_version_flag(buf);
     let _ = buf.get_u32(); // predefined as 0.
 
     let mut handler_type: [u8; 4] = [0; 4];
@@ -272,22 +343,125 @@ fn read_hdlr(buf: &mut impl Buf) -> (u32, [u8; 4], String) {
         name.push(c as char);
     }
 
-    (vf, handler_type, name)
+    (v, f, handler_type, name)
 }
 
-fn read_data(buf: &mut impl Buf, size: usize) -> (u32, String) {
-    let vf = buf.get_u32();
+// TODO(jdr): return the raw bytes
+// if we don't get a good flag value.
+#[derive(Debug)]
+pub enum DataBoxContent {
+    Text(String),
+    Data(Vec<u8>),
+    Byte(u8),
+}
+
+const IMPLICIT_FLAGS: u32 = 0;
+const TEXT_FLAGS: u32 = 1;
+const JPEG_FLAGS: u32 = 13;
+const PNG_FLAGS: u32 = 14;
+const BYTE_FLAGS: u32 = 21;
+
+// TODDO(jdr): Check for flag-type size mismatch errors and return them.
+// E.g. When the flags say BYTE_FLAGS, but size says there is more than one
+// byte left to read.
+// TOOD(jdr): Add support for the image types outside of just a data array.
+fn read_data(buf: &mut impl Buf, size: usize) -> (u8, u32, DataBoxContent) {
+    let (v, f) = read_version_flag(buf);
+
     let _ = buf.get_u32(); // predefined as 0.
 
-    let mut value = String::new();
-    let mut c;
-    // println!("Reading {} bytes", size);
-    if size < 128 {
-        for i in 8..(size - 8) {
-            c = buf.get_u8();
-            // println!("Reading buf[{}] = {}", i, c);
-            value.push(c as char);
+    let value;
+    match f {
+        TEXT_FLAGS => {
+            let mut sv = String::new();
+            let mut c;
+            for _ in 8..(size - 8) {
+                c = buf.get_u8();
+                sv.push(c as char);
+            }
+            value = DataBoxContent::Text(sv);
+        }
+        IMPLICIT_FLAGS | JPEG_FLAGS | PNG_FLAGS => {
+            let mut dv = Vec::<u8>::new();
+            for _ in 8..(size - 8) {
+                dv.push(buf.get_u8());
+            }
+            value = DataBoxContent::Data(dv);
+        }
+        BYTE_FLAGS => {
+            value = DataBoxContent::Byte(buf.get_u8());
+            // 8 bytes of size + 'data' header,
+            // 4 bytes v/flag, 4 bytes of reserve, 1 byte of returned data.
+            buf.advance(size - 17);
+        }
+        _ => {
+            eprintln!("Unknown 'data' Box flag value: {}", f);
+            let mut dv = Vec::<u8>::new();
+            for _ in 8..(size - 8) {
+                dv.push(buf.get_u8());
+            }
+            value = DataBoxContent::Data(dv);
         }
     }
-    return (vf, value);
+    return (v, f, value);
+}
+
+fn read_apple_info_box(buf: &mut impl Buf) -> (String, String, DataBoxContent) {
+    let (s, t) = read_box_header(buf);
+    if &t != b"mean" {
+        eprintln!(
+            "Expected box type {:?}, got: {:}",
+            "mean",
+            from_utf8(&t).unwrap()
+        );
+        let (_, _, d) = read_data(buf, s);
+        return ("".to_string(), "".to_string(), d);
+    }
+
+    let (v, f) = read_version_flag(buf);
+    let mut mean_val = String::new();
+    for _ in 0..(s - 12) {
+        mean_val.push(buf.get_u8() as char)
+    }
+
+    let (nb_s, t) = read_box_header(buf); // this read 4 + 4 = 8 bytes
+    match &t {
+        b"name" => {
+            let (nb_v, nb_f) = read_version_flag(buf); // this read 4 bytes of v/f. set to 0/0
+            let mut name_val = String::new();
+            for _ in 0..(nb_s - 12) {
+                name_val.push(buf.get_u8() as char);
+            }
+            // println!("\tName box size: {}", nb_s);
+            let (v, _, d) = read_data_box(buf);
+            return (mean_val, name_val, d);
+            // let (nb_v, nb_f, data) = read_data(buf, name_box_s);
+        }
+        _ => {
+            println!(
+                "Unknown inner box type. Expected {:?}, got: {:?}",
+                "name",
+                from_utf8(&t).unwrap()
+            );
+            let (_, _, d) = read_data(buf, nb_s);
+            return (mean_val, "".to_string(), d);
+        }
+    }
+}
+
+fn read_data_box(buf: &mut impl Buf) -> (u8, u32, DataBoxContent) {
+    let (s, t) = read_box_header(buf);
+    match &t {
+        // b"mean" => {
+        //     return read_apple_info_box(buf);
+        // }
+        b"data" => {
+            return read_data(buf, s);
+        }
+        _ => {
+            eprintln!("ERROR: EXPECTED A DATA BLOCK: Got: {:?}", t);
+            eprintln!("name: {:?}", from_utf8(&t).unwrap());
+            return read_data(buf, s);
+        }
+    };
 }
