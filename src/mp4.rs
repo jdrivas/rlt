@@ -46,86 +46,109 @@ impl file::Decoder for Mp4 {
         &mut self,
         mut r: impl Read + Seek,
     ) -> Result<Option<track::Track>, Box<dyn Error>> {
+        // Starthere.
         let mut vbuf = Vec::<u8>::new();
         let _n = r.read_to_end(&mut vbuf)?;
         let mut buf = vbuf.as_slice();
-        read_boxes(&mut buf)?;
+        read_file(&mut buf)?;
+        // read_boxes(&mut buf)?;
 
         return Ok(None);
 
-        let mut mc = mp4parse::MediaContext::new();
-        match mp4parse::read_mp4(&mut r, &mut mc) {
-            Ok(_) => (),
-            Err(e) => eprintln!("Failed to parse mp4:{:?}", e),
-        }
+        /*
+                let mut mc = mp4parse::MediaContext::new();
+                match mp4parse::read_mp4(&mut r, &mut mc) {
+                    Ok(_) => (),
+                    Err(e) => eprintln!("Failed to parse mp4:{:?}", e),
+                }
 
-        // println!("timescale: {:?}", mc.timescale);
-        // println!("Mnovied extends Box: {:?}", mc.mvex);
-        // println!("Number of ProtectionSystemSpecificHeaders: {:?}", mc.psshs);
-        // println!("Tracks: {}", mc.tracks.len());
-        for t in &mc.tracks {
-            //     println!("ID: {}", t.id);
-            //     println!("Type: {:?}", t.track_type);
-            //     println!("Empty Duration: {:?}", t.empty_duration);
-            //     println!("Media Time: {:?}", t.media_time);
-            // println!("Timescale: {:?}", t.timescale);
-            // println!("Duration: {:?}", t.duration);
-            //     println!("Track ID: {:?}", t.track_id);
-            //     println!("Track Header: {:?}", t.tkhd);
-            //     match &t.stsd {
-            //         Some(sd) => {
-            //             println!("Sample Description boxes: {:?}", sd.descriptions.len());
-            //             println!("Sample Entry: {:?}", sd.descriptions[0]);
-            //         }
-            //         None => println!("Sample Description boxes: None"),
-            //     }
-        }
+                // println!("timescale: {:?}", mc.timescale);
+                // println!("Mnovied extends Box: {:?}", mc.mvex);
+                // println!("Number of ProtectionSystemSpecificHeaders: {:?}", mc.psshs);
+                // println!("Tracks: {}", mc.tracks.len());
+                for t in &mc.tracks {
+                    //     println!("ID: {}", t.id);
+                    //     println!("Type: {:?}", t.track_type);
+                    //     println!("Empty Duration: {:?}", t.empty_duration);
+                    //     println!("Media Time: {:?}", t.media_time);
+                    // println!("Timescale: {:?}", t.timescale);
+                    // println!("Duration: {:?}", t.duration);
+                    //     println!("Track ID: {:?}", t.track_id);
+                    //     println!("Track Header: {:?}", t.tkhd);
+                    //     match &t.stsd {
+                    //         Some(sd) => {
+                    //             println!("Sample Description boxes: {:?}", sd.descriptions.len());
+                    //             println!("Sample Entry: {:?}", sd.descriptions[0]);
+                    //         }
+                    //         None => println!("Sample Description boxes: None"),
+                    //     }
+                }
 
-        // TODO(jdr): Fix this and decide how to handle multiple tracks.
-        // Assume 1 track
-        let mut tk = track::Track {
-            ..Default::default()
-        };
+                // TODO(jdr): Fix this and decide how to handle multiple tracks.
+                // Assume 1 track
+                let mut tk = track::Track {
+                    ..Default::default()
+                };
 
-        if mc.tracks.len() > 0 {
-            if mc.tracks.len() != 1 {
-                eprintln!("There were {} tracks, excepted 1.", mc.tracks.len());
-            }
-            if let Some(sd) = &mc.tracks[0].stsd {
-                if sd.descriptions.len() > 0 {
-                    if sd.descriptions.len() != 1 {
-                        eprintln!(
-                            "There were {} sample description entries, expected 1",
-                            sd.descriptions.len()
-                        );
+                if mc.tracks.len() > 0 {
+                    if mc.tracks.len() != 1 {
+                        eprintln!("There were {} tracks, excepted 1.", mc.tracks.len());
                     }
-                    match &sd.descriptions[0] {
-                        mp4parse::SampleEntry::Audio(ase) => {
-                            let mut duration = 0;
-                            if let Some(d) = mc.tracks[0].duration {
-                                duration = d.0;
+                    if let Some(sd) = &mc.tracks[0].stsd {
+                        if sd.descriptions.len() > 0 {
+                            if sd.descriptions.len() != 1 {
+                                eprintln!(
+                                    "There were {} sample description entries, expected 1",
+                                    sd.descriptions.len()
+                                );
                             }
-                            tk.format = Some(track::CodecFormat::PCM(track::PCMFormat {
-                                sample_rate: ase.samplerate as u32,
-                                bits_per_sample: ase.samplesize,
-                                total_samples: duration,
-                                ..Default::default()
-                            }));
-                            // eprintln!("Codec Specific: {:?}", ase.codec_specific);
-                            // eprintln!(
-                            //     "Protection Info size: {} entires",
-                            //     ase.protection_info.len()
-                            // );
+                            match &sd.descriptions[0] {
+                                mp4parse::SampleEntry::Audio(ase) => {
+                                    let mut duration = 0;
+                                    if let Some(d) = mc.tracks[0].duration {
+                                        duration = d.0;
+                                    }
+                                    tk.format = Some(track::CodecFormat::PCM(track::PCMFormat {
+                                        sample_rate: ase.samplerate as u32,
+                                        bits_per_sample: ase.samplesize,
+                                        total_samples: duration,
+                                        ..Default::default()
+                                    }));
+                                    // eprintln!("Codec Specific: {:?}", ase.codec_specific);
+                                    // eprintln!(
+                                    //     "Protection Info size: {} entires",
+                                    //     ase.protection_info.len()
+                                    // );
+                                }
+                                _ => eprintln!("Non-audio format."),
+                            }
                         }
-                        _ => eprintln!("Non-audio format."),
                     }
                 }
-            }
-        }
 
-        // let _ = read_atoms(r)?;
-        return Ok(Some(tk));
+                // let _ = read_atoms(r)?;
+                return Ok(Some(tk));
+        */
     }
+}
+
+fn read_file(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
+    let (brand, version, compat_brands) = read_ftyp(buf);
+    let cb = compat_brands
+        .iter()
+        .map(|v| match from_utf8(v) {
+            Ok(s) => s.to_string(),
+            Err(_) => format!("{:?}", v),
+        })
+        .collect::<Vec<String>>();
+
+    println!(
+        "MPEG-4 file: {} - {:?}, {:?}",
+        from_utf8(&brand)?,
+        version,
+        cb
+    );
+    return read_boxes(buf);
 }
 
 fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
@@ -143,14 +166,6 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
         println!("{:?}  [{}]", sb_type, size);
         let next;
         match &b_type {
-            b"ftyp" => {
-                let (brand, ver, cbrands) = read_ftyp(buf, size - 8);
-                println!("\t{}- {}", from_utf8(&brand)?, ver);
-                for b in &cbrands {
-                    println!("\t\t{}", from_utf8(b)?);
-                }
-                next = 0;
-            }
             // Container boxes.
             b"moov" | b"trak" | b"udta" | b"mdia" | b"minf" | b"dinf" | b"ilst" => {
                 let mut b = &buf.bytes()[0..size - 8];
@@ -158,15 +173,63 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 println!("------  {:?}", from_utf8(&b_type)?);
                 next = size - 8;
             }
-            // Just a FullBox.
+            // Full Box and container.
             b"meta" => {
-                let v = buf.get_u32();
-                println!("\tversion/flags: {:?}", v);
+                let (v, f) = read_version_flag(buf);
+                println!("\tversion: {:?}", v);
+                println!("\tflags: {:?}", f);
 
                 let mut b = &buf.bytes()[0..size - (8 + 4)];
                 read_boxes(&mut b)?;
                 println!("------  {:?}", from_utf8(&b_type)?);
                 next = size - (8 + 4);
+            } // full box with
+            b"mvhd" => {
+                let (v, f) = read_version_flag(buf);
+
+                println!("\tVersion: {:?}", v);
+                println!("\tFlags: {:?}", f);
+
+                // Store seconds since begining of 1904
+                let creation; // second in Jan 1, 1904.
+                let modification; // second in Jan 1, 1904.
+                let timescale; // units in one second.
+                let duration; // length in timescale.
+                if v == 1 {
+                    creation = buf.get_u64();
+                    modification = buf.get_u64();
+                    timescale = buf.get_u32();
+                    duration = buf.get_u64();
+                    28
+                } else {
+                    creation = buf.get_u32() as u64;
+                    modification = buf.get_u32() as u64;
+                    timescale = buf.get_u32();
+                    duration = buf.get_u32() as u64;
+                    16
+                };
+
+                println!("\tCreation: {:?} [{:0x}]", creation, creation);
+                println!("\tModification: {:?} [{:0x}]", modification, modification);
+                println!("\tTimescale: {:?} [{:0x}]", timescale, timescale);
+                println!("\tDuration: {:?} [{:0x}]", duration, duration);
+
+                let rate = buf.get_u32(); // playback speed.
+                let volume = buf.get_u16();
+                buf.advance(10); // reserved.
+                println!("\tRate: {} [{:0x}]", rate, rate);
+                println!("\tVolume: {} [{:0x}]", volume, volume);
+
+                let mut matrix: [u8; 36] = [0; 36]; // 4 x 9
+                buf.copy_to_slice(&mut matrix);
+
+                buf.advance(24); //  Quickitime values. (predefined 0 in standard MP4).
+
+                let next_track_id = buf.get_u32();
+                println!("\tNext Track: {}", next_track_id);
+
+                // next = bytes_left;
+                next = 0;
             }
             // FullBox with handler type eand name.
             b"hdlr" => {
@@ -188,7 +251,6 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
             | b"covr"
             | b"cpil"
             | b"disk"
-            // | b"name"
             | b"gnre"
             | b"pgap"
             | b"tmpo"
@@ -233,8 +295,8 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 println!("\tflags: {:#010b} = {:#03x}", f, f);
                 next = 0;
             }
-            | b"----" => {
-                let(mean, name, data) = read_apple_info_box(buf);
+            b"----" => {
+                let (mean, name, data) = read_apple_info_box(buf);
                 println!("\tApple Additional Info Box");
                 println!("\tMean Value: {:?}", mean);
                 println!("\tName Value: {:?}", name);
@@ -248,6 +310,21 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 println!("\tContents: {:?}", data);
                 next = 0; //size - read;
             }
+            b"free" | b"skip" => {
+                println!("\t{} Byte of free space in the current box.", size);
+                next = size - 8;
+            }
+            b"wide" => {
+                println!(
+                    "\t{} Bytes of free space to lengthen (widden) the file box.",
+                    size
+                );
+                next = size - 8;
+            }
+            b"mdat" => {
+                println!("\tMedia data. {} bytes", size);
+                next = size - 8;
+            }
             _ => {
                 println!("\tDefault.");
                 match from_utf8(&b_type) {
@@ -259,32 +336,31 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
             }
         }
 
-        // go to the next one.
         // TODO(jdr) If size == 0, box goes to end of file.
-        // let next = size as usize - 8;
-        println!("\tNext is: {}", next);
-        println!("\tRemaining is: {}", buf.remaining());
-        println!("\tRemaining - Next: {}", buf.remaining() - next);
+        // println!("\tNext is: {}", next);
+        // println!("\tRemaining is: {}", buf.remaining());
+        // println!("\tRemaining - Next: {}", buf.remaining() - next);
 
         if buf.remaining() <= next {
             break;
         }
         buf.advance(next);
     }
-    // Read atom data. Size - header(8 bytes).
 
     Ok(())
 }
 
-// TODO(jdr) - consider reading extend_type boxes.
 // TODO(jdr) - this will fail on 32 bit machines.
+// because we're reading in 64 bit size values as usize
+// which will wrap on a 32 bit machine.
 // Read Size and box type.
 // Read 4 bytes of size (big endian)
 // Size is the number of bytes in the box
 // including all fields and contained
 // boxes.
 // Read 4 bytes of box type.
-// Returns the Size and the Type of the box.
+// Read 4 bytes of the version and flags.
+// Returns the Version, Flags, Size, and the Type of the box.
 fn read_box_header(buf: &mut impl Buf) -> (usize, [u8; 4]) {
     let ss = buf.get_u32();
     let mut b_type: [u8; 4] = [0; 4];
@@ -298,24 +374,34 @@ fn read_box_header(buf: &mut impl Buf) -> (usize, [u8; 4]) {
     return (size, b_type);
 }
 
+// fn read_box_header(buf: &mut impl Buf) -> (u8, u32, usize, [u8; 4]) {
+//     let (size, b_type) = read_box_size_type(buf);
+//     let (v, f) = read_version_flag(buf);
+//     return (v, f, size, b_type);
+// }
+
 // Reads 4 bytes
 // Return the top byte as the version
 // number in a u8.
 // Returns the bottom three bytes as the flags in a u32.
 fn read_version_flag(buf: &mut impl Buf) -> (u8, u32) {
     let mut f = buf.get_u32();
-    // println!("V/F = {}", f);
     let v = (f >> 28) as u8; // High byte is the version
     f &= 0x00FFFFFF; // bottom three bytes are the flags.
     return (v, f);
 }
-// Read an ftyp box contents (assume buff points directly passed the size and type.)
-// returns the major brand and the minor version.
-fn read_ftyp(buf: &mut impl Buf, size: usize) -> ([u8; 4], u32, Vec<[u8; 4]>) {
+
+// TODO(jdr): check for the ftyp and return an error if not found?
+/// Read an ftyp box contents.
+/// returns the major brand, the minor version, and the compatible brands.
+fn read_ftyp(buf: &mut impl Buf) -> ([u8; 4], u32, Vec<[u8; 4]>) {
+    let (size, t) = read_box_header(buf); // t = fytp.
     let mut brand: [u8; 4] = [0; 4];
     buf.copy_to_slice(&mut brand);
-    let v = buf.get_u32();
-    let mut left = size - 8;
+    let version = buf.get_u32();
+
+    let mut left = size - 16;
+
     let mut c_brands = Vec::<[u8; 4]>::new();
     while left > 0 {
         let mut cb: [u8; 4] = [0; 4];
@@ -323,7 +409,7 @@ fn read_ftyp(buf: &mut impl Buf, size: usize) -> ([u8; 4], u32, Vec<[u8; 4]>) {
         c_brands.push(cb);
         left -= 4;
     }
-    return (brand, v, c_brands);
+    return (brand, version, c_brands);
 }
 
 fn read_hdlr(buf: &mut impl Buf) -> (u8, u32, [u8; 4], String) {
@@ -408,6 +494,7 @@ fn read_data(buf: &mut impl Buf, size: usize) -> (u8, u32, DataBoxContent) {
 
 fn read_apple_info_box(buf: &mut impl Buf) -> (String, String, DataBoxContent) {
     let (s, t) = read_box_header(buf);
+    let (v, f) = read_version_flag(buf);
     if &t != b"mean" {
         eprintln!(
             "Expected box type {:?}, got: {:}",
@@ -418,7 +505,7 @@ fn read_apple_info_box(buf: &mut impl Buf) -> (String, String, DataBoxContent) {
         return ("".to_string(), "".to_string(), d);
     }
 
-    let (v, f) = read_version_flag(buf);
+    // let (v, f) = read_version_flag(buf);
     let mut mean_val = String::new();
     for _ in 0..(s - 12) {
         mean_val.push(buf.get_u8() as char)
@@ -452,9 +539,6 @@ fn read_apple_info_box(buf: &mut impl Buf) -> (String, String, DataBoxContent) {
 fn read_data_box(buf: &mut impl Buf) -> (u8, u32, DataBoxContent) {
     let (s, t) = read_box_header(buf);
     match &t {
-        // b"mean" => {
-        //     return read_apple_info_box(buf);
-        // }
         b"data" => {
             return read_data(buf, s);
         }
