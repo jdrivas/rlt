@@ -303,8 +303,12 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
             }
             b"mdhd" => {
                 let mut read = 8;
-                let (v, _) = read_version_flag(buf);
+                let (v, f) = read_version_flag(buf);
                 read += 4;
+
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#03x}", f, f);
+
                 // Store seconds since begining of 1904
                 let creation; // second in Jan 1, 1904.
                 let modification; // second in Jan 1, 1904.
@@ -332,10 +336,11 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 let lang = buf.get_u16(); // ISO-639-2/T language code (MSB = 0, then 3 groups of 5 bits.
                 read += 2;
 
-                let _ = buf.get_u16(); // predefined = 0;
+                let qual = buf.get_u16(); // predefined = 0; Quicktime Quality value. Normal = 0;
                 read += 2;
 
                 println!("\tLanguage code: {:?} [{:0x}]", lang, lang);
+                println!("\tQuicktime Quality: {:?} [{:0x}]", qual, qual);
 
                 println!(
                     "\tSize: {}, Read: {}, Size - Read: {}",
@@ -349,14 +354,47 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 }
                 next = size - read;
             }
-            // FullBox with handler type eand name.
+            // FullBox with handler type and name.
             b"hdlr" => {
                 let (v, f, h_type, name) = read_hdlr(buf);
-                println!("\tversion : {:?}", v);
+                println!("\tversion: {:?}", v);
                 println!("\tflags: {:?}", f);
                 println!("\thandler_type: {:?}", from_utf8(&h_type)?);
                 println!("\tname: {:?}", name);
                 next = size - (8 + 4 + 4 + 4 + name.len() + 1);
+            }
+            b"smhd" => {
+                let mut read = 8;
+                let (v, f) = read_version_flag(buf);
+                read += 4;
+
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#03x}", f, f);
+
+                // 0 is center, positive is right; negative is left.
+                // This is an 8.8 fixed point number.
+                // Supposidly 1.0 is full right, -1.0 is full left
+                // but that doesn't use the full range of 8.8.
+                let balance = buf.get_i16();
+                read += 2;
+                let res = buf.get_u16(); // reserved = 0;
+                read += 2;
+
+                println!("\tBalance: {}", balance);
+                println!("\tReserved: {}", res);
+
+                println!(
+                    "\tSize: {}, Read: {}, Size - Read: {}",
+                    size,
+                    read,
+                    size - read
+                );
+                if size - read != 0 {
+                    eprintln!("Mismatch between expected bytes read and size of box.");
+                    eprintln!("Size = {}, Bytes read = {}", size, read);
+                }
+
+                next = size - read;
             }
             [0xa9, b'n', b'a', b'm']
             | [0xa9, b'a', b'l', b'b']
