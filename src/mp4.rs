@@ -6,7 +6,7 @@ use crate::file::FileFormat;
 use crate::track;
 // use byteorder::{BigEndian, ReadBytesExt};
 use bytes::buf::Buf;
-use mp4parse;
+// use mp4parse;
 // use std::convert::TryFrom;
 // use std::collections::HashSet;
 use std::error::Error;
@@ -156,14 +156,30 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
 
     loop {
         let (size, b_type) = read_box_header(buf);
-        // This is a hack for the Apple ilist
+        // This is some hackery for the Apple ilist
         // box which conatins boxes with
         // boxtype:  0xA9 + <3-byte-string>.
-        let sb_type = match b_type[0] {
-            0xa9 => from_utf8(&(b_type[1..4]))?,
-            _ => from_utf8(&b_type)?,
-        };
-        println!("{:?}  [{}]", sb_type, size);
+        // I'd like to compare to str in the match.
+        // so create a lossy, then grab it from the
+        // Cow (copy-on-write smartpointer) that from_utf8_lossy returns.
+        // with into_owned() and finally get the str out of the string.
+        // I could, and have, compared against the actual [u8,4] but it makes
+        // for slightly messy dsecriptions of the tokens.
+        // ... and this doesn't quite work as expected in the compares.
+        // println!("{}", 0xA9 as char);
+        // let sb_type = String::from_utf8_lossy(&b_type);
+        // match sb_type.into_owned().as_str() {
+        //     "moov" => println!("moov"),
+        //     "©alb" => println!("Calbum"),
+        //     _ => println!("not moov"),
+        // }
+        // Do this just for printout.
+        println!("{:?}  [{}]", String::from_utf8_lossy(&b_type), size);
+
+        // Keep the compare as [u8;4] for now.
+        // It's not that bad, and is probably faster as  it sould
+        // be tricial for the compiler to generate efficcient compare
+        // code for the [u8;4]s.
         let next;
         match &b_type {
             // Container boxes.
@@ -183,7 +199,7 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 read_boxes(&mut b)?;
                 println!("------  {:?}", from_utf8(&b_type)?);
                 next = size - (8 + 4);
-            } // full box with
+            } // full box witdth
             b"mvhd" => {
                 let (v, f) = read_version_flag(buf);
 
@@ -284,6 +300,54 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 println!("\tHeight {:?} [{:0x}]", height, height);
 
                 next = 0;
+            }
+            b"mdhd" => {
+                let mut read = 8;
+                let (v, _) = read_version_flag(buf);
+                read += 4;
+                // Store seconds since begining of 1904
+                let creation; // second in Jan 1, 1904.
+                let modification; // second in Jan 1, 1904.
+                let timescale; // units in one second.
+                let duration; // length in timescale.
+                read += if v == 1 {
+                    creation = buf.get_u64();
+                    modification = buf.get_u64();
+                    timescale = buf.get_u32();
+                    duration = buf.get_u64();
+                    28
+                } else {
+                    creation = buf.get_u32() as u64;
+                    modification = buf.get_u32() as u64;
+                    timescale = buf.get_u32();
+                    duration = buf.get_u32() as u64;
+                    16
+                };
+                println!("\tCreation: {:?} [{:0x}]", creation, creation);
+                println!("\tModification: {:?} [{:0x}]", modification, modification);
+                println!("\tTimescale: {:?} [{:0x}]", timescale, timescale);
+                println!("\tDuration: {:?} [{:0x}]", duration, duration);
+
+                // TODO(jdr): convert this to the proper representation.
+                let lang = buf.get_u16(); // ISO-639-2/T language code (MSB = 0, then 3 groups of 5 bits.
+                read += 2;
+
+                let _ = buf.get_u16(); // predefined = 0;
+                read += 2;
+
+                println!("\tLanguage code: {:?} [{:0x}]", lang, lang);
+
+                println!(
+                    "\tSize: {}, Read: {}, Size - Read: {}",
+                    size,
+                    read,
+                    size - read
+                );
+                if size - read != 0 {
+                    eprintln!("Mismatch between expected bytes read and size of box.");
+                    eprintln!("Size = {}, Bytes read = {}", size, read);
+                }
+                next = size - read;
             }
             // FullBox with handler type eand name.
             b"hdlr" => {
