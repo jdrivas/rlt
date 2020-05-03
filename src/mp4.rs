@@ -231,6 +231,60 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 // next = bytes_left;
                 next = 0;
             }
+            b"tkhd" => {
+                // Flag values.
+                // bit 0 = track enabled (disabled if 0)
+                // bit 1 = track in movie
+                // bit 2 = track in preview.
+                // bit 3 = track is aspect ratio. Wdith & Height ar not pxiels, but
+                // only and indicatio of the desired aspect ratio.
+                let (v, f) = read_version_flag(buf);
+                println!("\tVersion: {:?}", v);
+                println!("\tFlags: {:?}", f);
+
+                let creation;
+                let modification;
+                let track_id;
+                let reserved;
+                let duration;
+                if v == 1 {
+                    creation = buf.get_u64();
+                    modification = buf.get_u64();
+                    track_id = buf.get_u32();
+                    reserved = buf.get_u32();
+                    duration = buf.get_u64();
+                } else {
+                    creation = buf.get_u32() as u64;
+                    modification = buf.get_u32() as u64;
+                    track_id = buf.get_u32();
+                    reserved = buf.get_u32();
+                    duration = buf.get_u32() as u64;
+                }
+                println!("\tCreation: {:?} [{:0x}]", creation, creation);
+                println!("\tModification: {:?} [{:0x}]", modification, modification);
+                println!("\tTrack ID: {:?} [{:0x}]", track_id, track_id);
+                println!("\tDuration: {:?} [{:0x}]", duration, duration);
+                println!("\tReserved: {:?} [{:0x}]", reserved, reserved);
+
+                let res2 = buf.get_u64();
+                let layer = buf.get_u16();
+                let alt_group = buf.get_u16();
+                let volume = buf.get_u16();
+                let res3 = buf.get_u16();
+                let mut matrix: [u8; 36] = [0; 36];
+                buf.copy_to_slice(&mut matrix);
+                let width = buf.get_u32();
+                let height = buf.get_u32();
+                println!("\tReserved 2: {:?} [{:0x}]", res2, res2);
+                println!("\tLayer: {:?} [{:0x}]", layer, layer);
+                println!("\tAlt Group: {:?} [{:0x}]", alt_group, alt_group);
+                println!("\tVolume {:?} [{:0x}]", volume, volume);
+                println!("\tRes 3 {:?} [{:0x}]", res3, res3);
+                println!("\tWidth {:?} [{:0x}]", width, width);
+                println!("\tHeight {:?} [{:0x}]", height, height);
+
+                next = 0;
+            }
             // FullBox with handler type eand name.
             b"hdlr" => {
                 let (v, f, h_type, name) = read_hdlr(buf);
