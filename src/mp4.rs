@@ -183,7 +183,7 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
         let next;
         match &b_type {
             // Container boxes.
-            b"moov" | b"trak" | b"udta" | b"mdia" | b"minf" | b"dinf" | b"ilst" => {
+            b"moov" | b"trak" | b"udta" | b"mdia" | b"minf" | b"dinf" | b"ilst" | b"stbl" => {
                 let mut b = &buf.bytes()[0..size - 8];
                 read_boxes(&mut b)?;
                 println!("------  {:?}", from_utf8(&b_type)?);
@@ -392,6 +392,262 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 if size - read != 0 {
                     eprintln!("Mismatch between expected bytes read and size of box.");
                     eprintln!("Size = {}, Bytes read = {}", size, read);
+                }
+
+                next = size - read;
+            }
+            b"dref" => {
+                let mut read = 8;
+                let (v, f) = read_version_flag(buf);
+                read += 4;
+
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#03x}", f, f);
+
+                let entry_count = buf.get_u32();
+                read += 4;
+
+                println!("\tEntry count: {}", entry_count);
+                println!(
+                    "\tSize: {}, Read: {}, Size - Read: {}",
+                    size,
+                    read,
+                    size - read
+                );
+
+                let mut b = &buf.bytes()[0..size - read];
+                read_boxes(&mut b)?;
+
+                println!("------ {:?}", "dref");
+
+                next = size - read;
+                // next = 0;
+            }
+            // TODO(jdr): this is certainly wrong
+            // It appears that if the flag is 1, you have
+            // no string,
+            // TODO(jdr): add support for the URN box.
+            b"url " => {
+                let mut read = 8;
+                let (v, f) = read_version_flag(buf);
+                read += 4;
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#08x}", f, f);
+
+                if f != 1 {
+                    // read the string.
+                }
+
+                if size - read != 0 {
+                    eprintln!("Mismatch between expected bytes read and size of box.");
+                    eprintln!("Size = {}, Bytes read = {}", size, read,);
+                }
+
+                next = 0;
+            }
+            b"stsd" => {
+                let mut read = 8;
+                let (v, f) = read_version_flag(buf);
+                read += 4;
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#08x}", f, f);
+
+                let descriptions = buf.get_u32();
+                let d_len = buf.get_u32();
+                let mut d_vis: [u8; 4] = [0; 4];
+                buf.copy_to_slice(&mut d_vis);
+                read += 12;
+
+                buf.advance(6); // reserved and set to 0.
+                read += 6;
+
+                let index = buf.get_u16();
+                let qt_audio_enc_version = buf.get_u16();
+                let qt_audio_enc_revision = buf.get_u16();
+                read += 6;
+
+                let mut qt_audio_enc_vendor: [u8; 4] = [0; 4];
+                buf.copy_to_slice(&mut qt_audio_enc_vendor);
+                read += 4;
+
+                let channels = buf.get_u16();
+                let sample_size = buf.get_u16();
+                let qt_audio_compression_id = buf.get_u16();
+                let qt_audio_packet_sz = buf.get_u16();
+                let sample_rate = buf.get_u32();
+                read += 12;
+
+                println!("\tDescriptions {}", descriptions);
+                println!("\tDescription Length {}", d_len);
+                println!("\tDescription Format {:?}", from_utf8(&d_vis)?);
+
+                println!("\tIndex: {}", index);
+                println!("\tChannels: {}", channels);
+                println!("\tSample Size: {}", sample_size);
+                println!("\tSample Rate: {} {:#08x}", sample_rate, sample_rate);
+
+                println!("\tQT Audio Encoding Version: {}", qt_audio_enc_version);
+                println!("\tQT Audio Encoding Revision: {}", qt_audio_enc_revision);
+                println!(
+                    "\tQT Audio Encoding Vendor: {:?}",
+                    from_utf8(&qt_audio_enc_vendor)?
+                );
+                println!("\tQT Audio Compression ID: {}", qt_audio_compression_id);
+                println!("\tQT Audio Packet Size: {}", qt_audio_packet_sz);
+
+                // The spec doesn't seem to talk about this,
+                // but we see esds boxes following.
+                if size - read != 0 {
+                    let mut b = &buf.bytes()[0..size - read];
+                    read_boxes(&mut b)?;
+                    println!("------ {:?}", from_utf8(&b_type)?);
+                    // eprintln!("Mismatch between expected bytes read and size of box.");
+                    // eprintln!("Size = {}, Bytes read = {}", size, read,);
+                }
+
+                next = size - read;
+            }
+            b"esds" => {
+                let mut read = 8;
+                let (v, f) = read_version_flag(buf);
+                read += 4;
+
+                let d_type = buf.get_u8();
+                read += 1;
+
+                // - types are Start = 0x80 ; End = 0xFE
+                let mut d_type_tag: [u8; 3] = [0; 3];
+                buf.copy_to_slice(&mut d_type_tag);
+                read += 3;
+
+                let d_len = buf.get_u8();
+                read += 1;
+
+                let es_id = buf.get_u16();
+                read += 2;
+
+                let stream_prio = buf.get_u8();
+                read += 1;
+
+                let decoder_config_desc = buf.get_u8();
+                read += 1;
+
+                let mut xd_type_tag: [u8; 3] = [0; 3];
+                buf.copy_to_slice(&mut xd_type_tag);
+                read += 3;
+
+                let d_type_leng = buf.get_u8();
+                read += 1;
+
+                // - type IDs are system v1 = 1 ; system v2 = 2
+                // - type IDs are MPEG-4 video = 32 ; MPEG-4 AVC SPS = 33
+                // - type IDs are MPEG-4 AVC PPS = 34 ; MPEG-4 audio = 64
+                // - type IDs are MPEG-2 simple video = 96
+                // - type IDs are MPEG-2 main video = 97
+                // - type IDs are MPEG-2 SNR video = 98
+                // - type IDs are MPEG-2 spatial video = 99
+                // - type IDs are MPEG-2 high video = 100
+                // - type IDs are MPEG-2 4:2:2 video = 101
+                // - type IDs are MPEG-4 ADTS main = 102
+                // - type IDs are MPEG-4 ADTS Low Complexity = 103
+                // - type IDs are MPEG-4 ADTS Scalable Sampling Rate = 104
+                // - type IDs are MPEG-2 ADTS = 105 ; MPEG-1 video = 106
+                // - type IDs are MPEG-1 ADTS = 107 ; JPEG video = 108
+                // - type IDs are private audio = 192 ; private video = 208
+                // - type IDs are 16-bit PCM LE audio = 224 ; vorbis audio = 225
+                // - type IDs are dolby v3 (AC3) audio = 226 ; alaw audio = 227
+                // - type IDs are mulaw audio = 228 ; G723 ADPCM audio = 229
+                // - type IDs are 16-bit PCM Big Endian audio = 230
+                // - type IDs are Y'CbCr 4:2:0 (YV12) video = 240 ; H264 video = 241
+                // - type IDs are H263 video = 242 ; H261 video = 243
+                let object_type = buf.get_u8();
+                read += 1;
+
+                let flags_buffer_size = buf.get_u32();
+                read += 4;
+
+                println!("\tDescriptor type: {} {:#02x}", d_type, d_type);
+                println!(
+                    "\tDescriptor type tag: {:?} {:?}",
+                    from_utf8(&d_type_tag),
+                    d_type_tag
+                );
+                println!("\tDescriptor length: {} {:#02x}", d_len, d_len);
+                println!("\tES ID: {} {:#04x}", es_id, es_id);
+                println!("\tStream Priority: {} {:#02x}", stream_prio, stream_prio);
+                println!(
+                    "\tDecoder Config Descriptor: {} {:#02x}",
+                    decoder_config_desc, decoder_config_desc
+                );
+
+                // - types are Start = 0x80 ; End = 0xFE
+                println!(
+                    "\tExtended Descriptor Type: {:?} {:?}",
+                    from_utf8(&xd_type_tag),
+                    xd_type_tag
+                );
+                println!("\tDescriptor type length: {}", d_type_leng);
+                println!("\tObject Type: {} {:#02x}", object_type, object_type);
+
+                // MSByte of flags_buffer_size
+                // 6msb  bits of stream type.
+                // 1 bit of upstream flag
+                // 1lsb bit reserved flag
+                let stream_flags = (flags_buffer_size >> 24) as u8;
+
+                // 24 bits unsigned buffer size (store din u32).
+                let buffer_size = (0xFF000000) & flags_buffer_size;
+
+                println!(
+                    "\tStream Flags: {:#08b} {:#02x}",
+                    stream_flags, stream_flags
+                );
+                println!("\tBuffer Size: {} {:#06x}", buffer_size, buffer_size);
+
+                let maximum_bit_rate = buf.get_u32();
+                read += 4;
+                let average_bit_rate = buf.get_u32();
+                read += 4;
+
+                println!("\tMaximum Bit Rate: {}", maximum_bit_rate);
+                println!("\tAverage Bit Rate: {}", average_bit_rate);
+
+                // MSB = decoder specific descriptor type
+                // 3 x LSB = extended decoder specific descriptor 3 bytes string.
+                let decoder_type = buf.get_u32();
+                read += 4;
+
+                let type_length = buf.get_u8() as usize; // as usize for how we use it below.
+                read += 1;
+
+                // read type length bytes for ES Start header start code.
+                buf.advance(type_length);
+                read += type_length;
+
+                println!("\tDecoder Type:  {:#010x}", decoder_type);
+                println!("\tType Length: {}", type_length);
+
+                // MSB = SL descriptor type tag
+                // 3 LSB = SL descriptor type string hex value.
+                let sl_config_type = buf.get_u32();
+                read += 4;
+
+                let sl_type_length = buf.get_u8();
+                read += 1;
+
+                let sl_value = buf.get_u8();
+                read += 1;
+
+                println!(
+                    "\tSL Config type: {} {:#06x}",
+                    sl_config_type, sl_config_type
+                );
+                println!("\tSL Type Length: {}", sl_type_length);
+                println!("\tSL Type Value: {} {:#02x}", sl_value, sl_value);
+
+                if size - read != 0 {
+                    eprintln!("Mismatch between expected bytes read and size of box.");
+                    eprintln!("Size = {}, Bytes read = {}", size, read,);
                 }
 
                 next = size - read;
