@@ -17,23 +17,26 @@ use std::str::from_utf8;
 pub struct Mp4;
 
 const FTYP_HEADER: &[u8] = b"ftyp";
-const M4A_HEADER: &[u8] = b"M4A";
-// const M4B_HEADER: &[u8] = b"M4B";
-// const M4P_HEADER: &[u8] = b"M4P";
+const M42_HEADER: &[u8] = b"mp42";
+const M4A_HEADER: &[u8] = b"M4A ";
+// const M4B_HEADER: &[u8] = b"M4B ";
+// const M4P_HEADER: &[u8] = b"M4P ";
 
 pub fn identify(b: &[u8]) -> Option<FileFormat> {
+    let mut ft = None;
     if b.len() >= 12 {
         if &b[4..8] == FTYP_HEADER {
-            match &b[8..11] {
-                b if b == M4A_HEADER => return Some(FileFormat::MP4A(Mp4 {})),
+            ft = match &b[8..12] {
+                b if b == M42_HEADER => Some(FileFormat::MP4A(Mp4 {})),
+                b if b == M4A_HEADER => Some(FileFormat::MP4A(Mp4 {})),
                 // b if b == M4B_HEADER => return Some(FileFormat::MP4B),
                 // b if b == M4P_HEADER => return Some(FileFormat::MP4P),
-                _ => return None,
-            }
+                _ => None,
+            };
         }
     }
 
-    return None;
+    return ft;
 }
 
 const FORMAT_NAME: &str = "mpeg-4";
@@ -538,32 +541,58 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 let (r, v, f) = read_version_flag(buf);
                 read += r;
 
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#08x}", f, f);
+
                 let d_type = buf.get_u8();
                 read += 1;
+                println!("\tDescriptor type: {} {:#02x}", d_type, d_type);
 
+                println!("\tESDS not othewise implemented");
+/*
                 // - types are Start = 0x80 ; End = 0xFE
                 let mut d_type_tag: [u8; 3] = [0; 3];
                 buf.copy_to_slice(&mut d_type_tag);
                 read += 3;
 
+                // ESD
+                println!(
+                    "\tDescriptor type tag: {:?} {:?}",
+                    from_utf8(&d_type_tag),
+                    d_type_tag,
+                );
+
                 let d_len = buf.get_u8();
                 read += 1;
+                println!("\tDescriptor length: {} {:#04x}", d_len, d_len);
 
                 let es_id = buf.get_u16();
                 read += 2;
+                println!("\tES ID: {} {:#06x}", es_id, es_id);
 
                 let stream_prio = buf.get_u8();
                 read += 1;
+                println!("\tStream Priority: {} {:#02x}", stream_prio, stream_prio);
 
                 let decoder_config_desc = buf.get_u8();
                 read += 1;
+                println!(
+                    "\tDecoder Config Descriptor: {} {:#02x}",
+                    decoder_config_desc, decoder_config_desc
+                );
 
                 let mut xd_type_tag: [u8; 3] = [0; 3];
                 buf.copy_to_slice(&mut xd_type_tag);
                 read += 3;
+                println!(
+                    "\tExtended Descriptor Type: {:?} {:?}",
+                    from_utf8(&xd_type_tag),
+                    xd_type_tag
+                );
 
                 let d_type_leng = buf.get_u8();
                 read += 1;
+                println!("\tDescriptor type length: {}", d_type_leng);
 
                 // - type IDs are system v1 = 1 ; system v2 = 2
                 // - type IDs are MPEG-4 video = 32 ; MPEG-4 AVC SPS = 33
@@ -588,32 +617,12 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 // - type IDs are H263 video = 242 ; H261 video = 243
                 let object_type = buf.get_u8();
                 read += 1;
+                println!("\tObject Type: {} {:#02x}", object_type, object_type);
 
                 let flags_buffer_size = buf.get_u32();
                 read += 4;
 
-                println!("\tDescriptor type: {} {:#02x}", d_type, d_type);
-                println!(
-                    "\tDescriptor type tag: {:?} {:?}",
-                    from_utf8(&d_type_tag),
-                    d_type_tag
-                );
-                println!("\tDescriptor length: {} {:#02x}", d_len, d_len);
-                println!("\tES ID: {} {:#04x}", es_id, es_id);
-                println!("\tStream Priority: {} {:#02x}", stream_prio, stream_prio);
-                println!(
-                    "\tDecoder Config Descriptor: {} {:#02x}",
-                    decoder_config_desc, decoder_config_desc
-                );
-
                 // - types are Start = 0x80 ; End = 0xFE
-                println!(
-                    "\tExtended Descriptor Type: {:?} {:?}",
-                    from_utf8(&xd_type_tag),
-                    xd_type_tag
-                );
-                println!("\tDescriptor type length: {}", d_type_leng);
-                println!("\tObject Type: {} {:#02x}", object_type, object_type);
 
                 // MSByte of flags_buffer_size
                 // 6msb  bits of stream type.
@@ -632,51 +641,62 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
 
                 let maximum_bit_rate = buf.get_u32();
                 read += 4;
+                println!("\tMaximum Bit Rate: {}", maximum_bit_rate);
+
                 let average_bit_rate = buf.get_u32();
                 read += 4;
-
-                println!("\tMaximum Bit Rate: {}", maximum_bit_rate);
                 println!("\tAverage Bit Rate: {}", average_bit_rate);
 
-                // MSB = decoder specific descriptor type
-                // 3 x LSB = extended decoder specific descriptor 3 bytes string.
-                let decoder_type = buf.get_u32();
-                read += 4;
-
-                let type_length = buf.get_u8() as usize; // as usize for how we use it below.
+                // This is pretty wierd. I have a test file, which may
+                // or may not be valid. That essentially ends here.
+                // so:
+                let decoder_type = buf.get_u8();
                 read += 1;
-
-                // read type length bytes for ES Start header start code.
-                buf.advance(type_length);
-                read += type_length;
-
                 println!("\tDecoder Type:  {:#010x}", decoder_type);
-                println!("\tType Length: {}", type_length);
-
-                // MSB = SL descriptor type tag
-                // 3 LSB = SL descriptor type string hex value.
-                let sl_config_type = buf.get_u32();
-                read += 4;
-
-                let sl_type_length = buf.get_u8();
-                read += 1;
-
-                let sl_value = buf.get_u8();
-                read += 1;
 
                 println!(
-                    "\tSL Config type: {} {:#06x}",
-                    sl_config_type, sl_config_type
+                    "Size: {}, Read: {}, Left: {}, buf.remaining {}",
+                    size,
+                    read,
+                    size - read,
+                    buf.remaining()
                 );
-                println!("\tSL Type Length: {}", sl_type_length);
-                println!("\tSL Type Value: {} {:#02x}", sl_value, sl_value);
+                if (size - read) > 0 && buf.remaining() >= (size - read) {
+                    let type_length = buf.get_u8() as usize; // as usize for how we use it below.
+                    read += 1;
+                    println!("\tType Length: {}", type_length);
 
-                if size - read != 0 {
-                    eprintln!("Mismatch between bytes read and size of box.");
-                    eprintln!("Size = {}, Bytes read = {}", size, read,);
+                    // read type length bytes for ES Start header start code.
+                    buf.advance(type_length);
+                    read += type_length;
+
+                    // MSB = SL descriptor type tag
+                    // 3 LSB = SL descriptor type string hex value.
+                    let sl_config_type = buf.get_u32();
+                    read += 4;
+                    println!(
+                        "\tSL Config type: {} {:#06x}",
+                        sl_config_type, sl_config_type
+                    );
+
+                    let sl_type_length = buf.get_u8();
+                    read += 1;
+                    println!("\tSL Type Length: {}", sl_type_length);
+
+                    let sl_value = buf.get_u8();
+                    read += 1;
+                    println!("\tSL Type Value: {} {:#02x}", sl_value, sl_value);
+
+                    // Check for reading the full box.
+                    // alert otherwise.
+                    if size - read != 0 {
+                        eprintln!("Mismatch between bytes read and size of box.");
+                        eprintln!("Size = {}, Bytes read = {}", size, read,);
+                    }
                 }
-
+*/
                 next = size - read;
+
             }
             b"stts" => {
                 let mut read = 8;
@@ -828,14 +848,18 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 next = size - read;
             }
             // Data Boxes for ilst metadata.
-            [0xa9, b'n', b'a', b'm']
-            | [0xa9, b'a', b'l', b'b']
+            [0xa9, b'a', b'l', b'b']
+            | [0xa9, b'a', b'r', b't']
             | [0xa9, b'A', b'R', b'T']
-            | [0xa9, b'c', b'm', b't']
-            | [0xa9, b'd', b'a', b'y']
-            | [0xa9, b'g', b'e', b'n']
-            | [0xa9, b't', b'o', b'o']
+            | [0xa9, b'c', b'm', b't']  // Comment
+            | [0xa9, b'd', b'a', b'y']  // Year
+            | [0xa9, b'g', b'e', b'n']  // Genre
+            | [0xa9, b'g', b'r', b'p']  // Genre
+            | [0xa9, b'l', b'y', b'r']  // Lyric
+            | [0xa9, b'n', b'a', b'm']  // Title
+            | [0xa9, b't', b'o', b'o']  // Encoder
             | [0xa9, b'w', b'r', b't']
+            | b"aART"
             | b"covr"
             | b"cpil"
             | b"disk"
@@ -983,6 +1007,7 @@ fn read_version_flag(buf: &mut impl Buf) -> (usize, u8, u32) {
 /// Read an ftyp box contents.
 /// returns the major brand, the minor version, and the compatible brands.
 fn read_ftyp(buf: &mut impl Buf) -> ([u8; 4], u32, Vec<[u8; 4]>) {
+    // println!("Calling read_ftyp");
     let (size, t) = read_box_header(buf); // t = fytp.
     let mut brand: [u8; 4] = [0; 4];
     buf.copy_to_slice(&mut brand);
