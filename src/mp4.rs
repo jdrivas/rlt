@@ -191,17 +191,21 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
             }
             // Full Box and container.
             b"meta" => {
-                let (v, f) = read_version_flag(buf);
+                let mut read = 8;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
                 println!("\tversion: {:?}", v);
                 println!("\tflags: {:?}", f);
 
-                let mut b = &buf.bytes()[0..size - (8 + 4)];
+                let mut b = &buf.bytes()[0..size - (read)];
                 read_boxes(&mut b)?;
                 println!("------  {:?}", from_utf8(&b_type)?);
-                next = size - (8 + 4);
+                next = size - read;
             } // full box witdth
             b"mvhd" => {
-                let (v, f) = read_version_flag(buf);
+                let mut read = 8;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
 
                 println!("\tVersion: {:?}", v);
                 println!("\tFlags: {:?}", f);
@@ -211,7 +215,7 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 let modification; // second in Jan 1, 1904.
                 let timescale; // units in one second.
                 let duration; // length in timescale.
-                if v == 1 {
+                read += if v == 1 {
                     creation = buf.get_u64();
                     modification = buf.get_u64();
                     timescale = buf.get_u32();
@@ -225,27 +229,37 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                     16
                 };
 
-                println!("\tCreation: {:?} [{:0x}]", creation, creation);
-                println!("\tModification: {:?} [{:0x}]", modification, modification);
-                println!("\tTimescale: {:?} [{:0x}]", timescale, timescale);
-                println!("\tDuration: {:?} [{:0x}]", duration, duration);
+                println!("\tCreation: {:?} [{:#018x}]", creation, creation);
+                println!(
+                    "\tModification: {:?} [{:#018x}]",
+                    modification, modification
+                );
+                println!("\tTimescale: {:?} [{:#018x}]", timescale, timescale);
+                println!("\tDuration: {:?} [{:#018x}]", duration, duration);
 
                 let rate = buf.get_u32(); // playback speed.
+                read += 4;
                 let volume = buf.get_u16();
+                read += 2;
                 buf.advance(10); // reserved.
-                println!("\tRate: {} [{:0x}]", rate, rate);
-                println!("\tVolume: {} [{:0x}]", volume, volume);
+                read += 10;
+                println!("\tRate: {} [{:#010x}]", rate, rate);
+                println!("\tVolume: {} [{:#06x}]", volume, volume);
 
                 let mut matrix: [u8; 36] = [0; 36]; // 4 x 9
                 buf.copy_to_slice(&mut matrix);
+                read += 36;
 
                 buf.advance(24); //  Quickitime values. (predefined 0 in standard MP4).
+                read += 24;
 
                 let next_track_id = buf.get_u32();
+                read += 4;
                 println!("\tNext Track: {}", next_track_id);
 
                 // next = bytes_left;
-                next = 0;
+                next = size - read;
+                // next = 0;
             }
             b"tkhd" => {
                 // Flag values.
@@ -254,7 +268,9 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 // bit 2 = track in preview.
                 // bit 3 = track is aspect ratio. Wdith & Height ar not pxiels, but
                 // only and indicatio of the desired aspect ratio.
-                let (v, f) = read_version_flag(buf);
+                let mut read = 8;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
                 println!("\tVersion: {:?}", v);
                 println!("\tFlags: {:?}", f);
 
@@ -263,19 +279,21 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 let track_id;
                 let reserved;
                 let duration;
-                if v == 1 {
+                read += if v == 1 {
                     creation = buf.get_u64();
                     modification = buf.get_u64();
                     track_id = buf.get_u32();
                     reserved = buf.get_u32();
                     duration = buf.get_u64();
+                    32
                 } else {
                     creation = buf.get_u32() as u64;
                     modification = buf.get_u32() as u64;
                     track_id = buf.get_u32();
                     reserved = buf.get_u32();
                     duration = buf.get_u32() as u64;
-                }
+                    20
+                };
                 println!("\tCreation: {:?} [{:0x}]", creation, creation);
                 println!("\tModification: {:?} [{:0x}]", modification, modification);
                 println!("\tTrack ID: {:?} [{:0x}]", track_id, track_id);
@@ -283,14 +301,22 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 println!("\tReserved: {:?} [{:0x}]", reserved, reserved);
 
                 let res2 = buf.get_u64();
+                read += 8;
                 let layer = buf.get_u16();
+                read += 2;
                 let alt_group = buf.get_u16();
+                read += 2;
                 let volume = buf.get_u16();
+                read += 2;
                 let res3 = buf.get_u16();
+                read += 2;
                 let mut matrix: [u8; 36] = [0; 36];
                 buf.copy_to_slice(&mut matrix);
+                read += 36;
                 let width = buf.get_u32();
+                read += 4;
                 let height = buf.get_u32();
+                read += 4;
                 println!("\tReserved 2: {:?} [{:0x}]", res2, res2);
                 println!("\tLayer: {:?} [{:0x}]", layer, layer);
                 println!("\tAlt Group: {:?} [{:0x}]", alt_group, alt_group);
@@ -299,12 +325,12 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 println!("\tWidth {:?} [{:0x}]", width, width);
                 println!("\tHeight {:?} [{:0x}]", height, height);
 
-                next = 0;
+                next = size - read;
             }
             b"mdhd" => {
                 let mut read = 8;
-                let (v, f) = read_version_flag(buf);
-                read += 4;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
 
                 println!("\tversion: {}", v);
                 println!("\tflags: {:#010b} = {:#03x}", f, f);
@@ -356,17 +382,17 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
             }
             // FullBox with handler type and name.
             b"hdlr" => {
-                let (v, f, h_type, name) = read_hdlr(buf);
+                let (read, v, f, h_type, name) = read_hdlr(buf);
                 println!("\tversion: {:?}", v);
                 println!("\tflags: {:?}", f);
                 println!("\thandler_type: {:?}", from_utf8(&h_type)?);
                 println!("\tname: {:?}", name);
-                next = size - (8 + 4 + 4 + 4 + name.len() + 1);
+                next = size - read;
             }
             b"smhd" => {
                 let mut read = 8;
-                let (v, f) = read_version_flag(buf);
-                read += 4;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
 
                 println!("\tversion: {}", v);
                 println!("\tflags: {:#010b} = {:#03x}", f, f);
@@ -398,8 +424,8 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
             }
             b"dref" => {
                 let mut read = 8;
-                let (v, f) = read_version_flag(buf);
-                read += 4;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
 
                 println!("\tversion: {}", v);
                 println!("\tflags: {:#010b} = {:#03x}", f, f);
@@ -429,8 +455,8 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
             // TODO(jdr): add support for the URN box.
             b"url " => {
                 let mut read = 8;
-                let (v, f) = read_version_flag(buf);
-                read += 4;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
                 println!("\tversion: {}", v);
                 println!("\tflags: {:#010b} = {:#08x}", f, f);
 
@@ -443,12 +469,12 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                     eprintln!("Size = {}, Bytes read = {}", size, read,);
                 }
 
-                next = 0;
+                next = size - read;
             }
             b"stsd" => {
                 let mut read = 8;
-                let (v, f) = read_version_flag(buf);
-                read += 4;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
                 println!("\tversion: {}", v);
                 println!("\tflags: {:#010b} = {:#08x}", f, f);
 
@@ -509,8 +535,8 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
             }
             b"esds" => {
                 let mut read = 8;
-                let (v, f) = read_version_flag(buf);
-                read += 4;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
 
                 let d_type = buf.get_u8();
                 read += 1;
@@ -646,12 +672,162 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 println!("\tSL Type Value: {} {:#02x}", sl_value, sl_value);
 
                 if size - read != 0 {
-                    eprintln!("Mismatch between expected bytes read and size of box.");
+                    eprintln!("Mismatch between bytes read and size of box.");
                     eprintln!("Size = {}, Bytes read = {}", size, read,);
                 }
 
                 next = size - read;
             }
+            b"stts" => {
+                let mut read = 8;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#03x}", f, f);
+
+                let num_times = buf.get_u32() as usize;
+                read += 4;
+                println!("\tNumber of frame rate calculation blocks: {}", num_times);
+                if num_times == 1 {
+                    let frame_count = buf.get_u32();
+                    read += 4;
+                    let duration = buf.get_u32();
+                    read += 4;
+
+                    println!("\tFixed frame rate, frame count: {}", frame_count);
+                    println!("\tFixed frame rate, duration : {}", duration);
+                } else {
+                    // TODO(jdr) implement variable framerate reporting.
+                    buf.advance(num_times * 8);
+                    read += num_times * 8;
+                }
+                if size - read != 0 {
+                    eprintln!("Mismatch between bytes read and size of box.");
+                    eprintln!(
+                        "Size = {}, Bytes read = {}, difference: {}",
+                        size,
+                        read,
+                        size - read
+                    );
+                }
+
+                next = size - read;
+            }
+            b"stsc" => {
+                let mut read = 8;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#03x}", f, f);
+
+                let num_blocks = buf.get_u32();
+                read += 4;
+
+                println!("\tNumber of chunks: {}", num_blocks);
+
+                let mut chunks = Vec::new();
+                for _ in 0..num_blocks {
+                    let first_chunk = buf.get_u32();
+                    let samples_per_chunk = buf.get_u32();
+                    let sample_description_index = buf.get_u32();
+                    chunks.push((first_chunk, samples_per_chunk, sample_description_index));
+                    read += 12;
+                }
+                println!(
+                    "\tChunks: {:?}",
+                    chunks
+                        .iter()
+                        .map(|v| {
+                            let (f, s, i) = v;
+                            format!("first: {}, samples: {}, description index: {}", f, s, i)
+                        })
+                        .collect::<Vec<String>>()
+                );
+
+                if size - read != 0 {
+                    eprintln!("Mismatch between bytes read and size of box.");
+                    eprintln!(
+                        "Size = {}, Bytes read = {}, difference: {}",
+                        size,
+                        read,
+                        size - read
+                    );
+                }
+
+                next = size - read;
+            }
+            b"stsz" => {
+                let mut read = 8;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#03x}", f, f);
+
+                let block_sample_size = buf.get_u32();
+                read += 4;
+
+                let num_block_sizes = buf.get_u32();
+                read += 4;
+
+                println!("\tBlock Byte Size: {}", block_sample_size);
+                println!("\tNumber of block sizes: {}", num_block_sizes);
+
+                let mut sizes = Vec::new();
+                if block_sample_size == 0 {
+                    for _ in 0..num_block_sizes {
+                        sizes.push(buf.get_u32());
+                        read += 4;
+                    }
+                }
+
+                // sizes.sort();
+                // println!("Sizes: {:?}", sizes);
+                println!("\tSizes: Not Displayed.");
+
+                if size - read != 0 {
+                    eprintln!("Mismatch between bytes read and size of box.");
+                    eprintln!(
+                        "Size = {}, Bytes read = {}, difference: {}",
+                        size,
+                        read,
+                        size - read
+                    );
+                }
+
+                next = size - read;
+            }
+            b"stco" => {
+                let mut read = 8;
+                let (r, v, f) = read_version_flag(buf);
+                read += r;
+                println!("\tversion: {}", v);
+                println!("\tflags: {:#010b} = {:#03x}", f, f);
+
+                let entry_count = buf.get_u32();
+                read += 4;
+                println!("\tFile offset entry count: {}", entry_count);
+
+                let mut offsets = Vec::new();
+                for _ in 00..entry_count {
+                    offsets.push(buf.get_u32());
+                    read += 4;
+                }
+                // println!("\tFile offests: {:?}", offsets);
+                println!("\tChunk file offsets: Not Displayed");
+
+                if size - read != 0 {
+                    eprintln!("Mismatch between bytes read and size of box.");
+                    eprintln!(
+                        "Size = {}, Bytes read = {}, difference: {}",
+                        size,
+                        read,
+                        size - read
+                    );
+                }
+
+                next = size - read;
+            }
+            // Data Boxes for ilst metadata.
             [0xa9, b'n', b'a', b'm']
             | [0xa9, b'a', b'l', b'b']
             | [0xa9, b'A', b'R', b'T']
@@ -796,11 +972,11 @@ fn read_box_header(buf: &mut impl Buf) -> (usize, [u8; 4]) {
 // Return the top byte as the version
 // number in a u8.
 // Returns the bottom three bytes as the flags in a u32.
-fn read_version_flag(buf: &mut impl Buf) -> (u8, u32) {
+fn read_version_flag(buf: &mut impl Buf) -> (usize, u8, u32) {
     let mut f = buf.get_u32();
     let v = (f >> 28) as u8; // High byte is the version
     f &= 0x00FFFFFF; // bottom three bytes are the flags.
-    return (v, f);
+    return (4, v, f);
 }
 
 // TODO(jdr): check for the ftyp and return an error if not found?
@@ -824,12 +1000,17 @@ fn read_ftyp(buf: &mut impl Buf) -> ([u8; 4], u32, Vec<[u8; 4]>) {
     return (brand, version, c_brands);
 }
 
-fn read_hdlr(buf: &mut impl Buf) -> (u8, u32, [u8; 4], String) {
-    let (v, f) = read_version_flag(buf);
+fn read_hdlr(buf: &mut impl Buf) -> (usize, u8, u32, [u8; 4], String) {
+    let mut read = 8;
+    let (r, v, f) = read_version_flag(buf);
+    read += r;
+
     let _ = buf.get_u32(); // predefined as 0.
+    read += 4;
 
     let mut handler_type: [u8; 4] = [0; 4];
     buf.copy_to_slice(&mut handler_type);
+    read += 4;
 
     let mut name = String::new();
     let mut c;
@@ -840,8 +1021,9 @@ fn read_hdlr(buf: &mut impl Buf) -> (u8, u32, [u8; 4], String) {
         }
         name.push(c as char);
     }
+    read += name.len() + 1;
 
-    (v, f, handler_type, name)
+    (read, v, f, handler_type, name)
 }
 
 // TODO(jdr): return the raw bytes
@@ -864,7 +1046,7 @@ const BYTE_FLAGS: u32 = 21;
 // byte left to read.
 // TOOD(jdr): Add support for the image types outside of just a data array.
 fn read_data(buf: &mut impl Buf, size: usize) -> (u8, u32, DataBoxContent) {
-    let (v, f) = read_version_flag(buf);
+    let (_, v, f) = read_version_flag(buf);
 
     let _ = buf.get_u32(); // predefined as 0.
 
@@ -906,7 +1088,7 @@ fn read_data(buf: &mut impl Buf, size: usize) -> (u8, u32, DataBoxContent) {
 
 fn read_apple_info_box(buf: &mut impl Buf) -> (String, String, DataBoxContent) {
     let (s, t) = read_box_header(buf);
-    let (v, f) = read_version_flag(buf);
+    let (r, v, f) = read_version_flag(buf);
     if &t != b"mean" {
         eprintln!(
             "Expected box type {:?}, got: {:}",
@@ -926,7 +1108,7 @@ fn read_apple_info_box(buf: &mut impl Buf) -> (String, String, DataBoxContent) {
     let (nb_s, t) = read_box_header(buf); // this read 4 + 4 = 8 bytes
     match &t {
         b"name" => {
-            let (nb_v, nb_f) = read_version_flag(buf); // this read 4 bytes of v/f. set to 0/0
+            let (_, nb_v, nb_f) = read_version_flag(buf); // this read 4 bytes of v/f. set to 0/0
             let mut name_val = String::new();
             for _ in 0..(nb_s - 12) {
                 name_val.push(buf.get_u8() as char);
