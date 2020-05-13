@@ -2,6 +2,7 @@ use crate::flac;
 // use crate::id3;
 use crate::mp3;
 use crate::mp4;
+use crate::mpeg4;
 use crate::track::Track;
 use crate::wav;
 use std::error::Error;
@@ -14,6 +15,7 @@ pub trait Decoder {
 
 pub enum FileFormat {
     Flac(flac::Flac),
+    MPEG4(mpeg4::Mpeg4),
     MP4A(mp4::Mp4),
     MP3(mp3::Mp3),
     WAV(wav::Wav),
@@ -25,6 +27,7 @@ impl std::fmt::Debug for FileFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
             FileFormat::Flac(_) => f.write_str("Flac")?,
+            FileFormat::MPEG4(_) => f.write_str("MPEG-4")?,
             FileFormat::MP4A(_) => f.write_str("MP4A")?,
             // FileFormat::MP4B => f.write_str("MP4B")?,
             // FileFormat::MP4P => f.write_str("MP4P")?,
@@ -50,6 +53,7 @@ pub fn identify(mut r: impl Read + Seek) -> Result<Option<FileFormat>, std::io::
     // then order will matter here.
     let ids = [
         flac::identify,
+        mpeg4::identify,
         mp4::identify,
         wav::identify,
         mp3::identify,

@@ -225,6 +225,7 @@ pub fn get_track(p: &path::PathBuf) -> Result<Option<Track>, Box<dyn Error>> {
   if let Some(f) = file::identify(&file)? {
     match f {
       FileFormat::Flac(mut d) => return Ok(d.get_track(&file)?),
+      FileFormat::MPEG4(mut d) => return Ok(d.get_track(&file)?),
       FileFormat::MP4A(mut d) => return Ok(d.get_track(&file)?),
       FileFormat::WAV(mut d) => return Ok(d.get_track(&file)?),
       FileFormat::MP3(mut d) => return Ok(d.get_track(&file)?),

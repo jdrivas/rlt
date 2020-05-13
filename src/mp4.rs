@@ -154,6 +154,37 @@ fn read_file(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
     return read_boxes(buf);
 }
 
+trait SimpleBox {
+    fn size(&self) -> u32;
+    fn kind<'a>(&'a self) -> &'a str; // Ths is a box type.
+    fn read(&self) -> usize; // bytes consumed in building this box.
+}
+
+trait ExtendedSimpleBox {
+    fn version(&self) -> u8;
+    fn flags(&self) -> u32;
+}
+
+struct ContainerBox<'a> {
+    size: u32,
+    kind: &'a str,
+}
+
+impl SimpleBox for ContainerBox<'_> {
+    fn size(&self) -> u32 {
+        self.size
+    }
+
+    fn kind<'a>(&'a self) -> &'a str {
+        self.kind
+    }
+
+    // It takes 8 bytes to create a container box.
+    fn read(&self) -> usize {
+        return 8;
+    }
+}
+
 fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
     // Read in file type box.
 
