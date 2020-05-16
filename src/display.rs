@@ -17,6 +17,7 @@ const NONE_SHORT: &str = "-";
 /// lists files and audio files separately dispaying
 /// metadata of the audio file if found.
 pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
+  // We've either provided a file or are using the current directory.
   let mut p;
   if fname == "" {
     p = env::current_dir()?;
@@ -24,6 +25,7 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
     p = path::PathBuf::from(fname);
   }
 
+  // Make sure we can find it ....
   let album;
   let files;
   if !p.as_path().exists() {
@@ -32,11 +34,15 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
       format!("File not found: {}", p.as_path().display()),
     )));
   }
+
+  // If it's a file get the track build an album around it.
+  // Otherwise,
   if p.is_file() {
     let (tracks, f) = track::files_from(p)?;
     album = album::album_from_tracks(tracks);
     files = f;
   } else {
+    // Else
     p = dir_or_cwd(p)?;
     let (a, f) = album::album_from_path(p)?;
     album = a;

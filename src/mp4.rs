@@ -218,6 +218,7 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
         match &b_type {
             // Container boxes.
             b"moov" | b"trak" | b"udta" | b"mdia" | b"minf" | b"dinf" | b"ilst" | b"stbl" => {
+
                 let mut b = &buf.bytes()[0..size - 8];
                 read_boxes(&mut b)?;
                 println!("------  {:?}", from_utf8(&b_type)?);
@@ -879,15 +880,15 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                 next = size - read;
             }
             // Data Boxes for ilst metadata.
-            [0xa9, b'a', b'l', b'b']
-            | [0xa9, b'a', b'r', b't']
-            | [0xa9, b'A', b'R', b'T']
+            [0xa9, b'a', b'l', b'b']    // Album
+            | [0xa9, b'a', b'r', b't']  // Artist
+            | [0xa9, b'A', b'R', b'T']  // Artist
             | [0xa9, b'c', b'm', b't']  // Comment
             | [0xa9, b'd', b'a', b'y']  // Year
             | [0xa9, b'g', b'e', b'n']  // Genre
             | [0xa9, b'g', b'r', b'p']  // Genre
             | [0xa9, b'l', b'y', b'r']  // Lyric
-            | [0xa9, b'n', b'a', b'm']  // Title
+            | [0xa9, b'n', b'a', b'm']  // Title/Name
             | [0xa9, b't', b'o', b'o']  // Encoder
             | [0xa9, b'w', b'r', b't']
             | b"aART"
@@ -922,7 +923,7 @@ fn read_boxes(buf: &mut impl Buf) -> Result<(), Box<dyn Error>> {
                             }
                             println!("\tDataBox::Data");
                             println!("\tLength: {}", d.len());
-                            println!("\tContent: {:?}", pb);
+                            println!("\tContent: {:x?}", pb);
                         }
                     },
                     DataBoxContent::Text(s) => {
