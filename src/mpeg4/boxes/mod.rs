@@ -1,25 +1,29 @@
 extern crate bytes;
+pub mod ilst;
 use bytes::buf::Buf;
 use std::fmt;
 
-// MP4Buffer and MP4Box BoxTypes.
-//
-
 /// Holds the buffer and supports
 /// iteration over the MP4Boxes
-/// inside the buffer.
+/// in the buffer.
 pub struct MP4Buffer<'a, 'b> {
     pub buf: &'b mut &'a [u8],
 }
 
+/// Holds header information from the box
+/// and the buffer for the data assocaited
+/// with the box.
 pub struct MP4Box<'a> {
     pub size: u32,
     pub kind: &'a [u8],
     pub buf: &'a [u8],
     pub box_type: BoxType,
-    pub path: Vec<&'a [u8]>,
+    // pub path: Vec<&'a [u8]>,
 }
 
+/// Captures the Simple and the Full Box
+/// definitions (with or without Version & Flags)
+/// and captures container versus not a conatiner.
 #[derive(Debug)]
 pub enum BoxType {
     Simple,
@@ -83,6 +87,80 @@ impl fmt::Debug for MP4Box<'_> {
     }
 }
 
+/// Box Kind (box type in the MPEG spec, type is a rust keyword).
+/// Constants for the 4 byte box designator.
+
+/// Container Boxes
+pub const DINF: [u8; 4] = *b"dinf"; // Data Information Box Container /moov/trak/mdia/dinf
+pub const META: [u8; 4] = *b"meta"; // Meta Data Container /moov/meta & /moov/trak/meta /mmov/udata/meta
+pub const MDIA: [u8; 4] = *b"mdia"; // Media Infirmation for Track  /moov/trak/mdia
+pub const MINF: [u8; 4] = *b"minf"; // Median Infomration Container    /moov/trak/mdia/minf
+pub const MOOV: [u8; 4] = *b"moov"; // Moov Container for all Metadata  /moov
+pub const TRAK: [u8; 4] = *b"trak"; // Trak Container /moov/trak
+pub const STBL: [u8; 4] = *b"stbl"; // Sample Table Box Container     /moov/trak/mdia/minf/stbl
+pub const UDTA: [u8; 4] = *b"udta"; // User Data Container   /moov/udta
+
+/// Full Boxes
+pub const DREF: [u8; 4] = *b"dref";
+pub const HDLR: [u8; 4] = *b"hdlr";
+pub const MDHD: [u8; 4] = *b"mdhd";
+pub const MVHD: [u8; 4] = *b"mvhd";
+pub const TKHD: [u8; 4] = *b"tkhd";
+pub const SMHD: [u8; 4] = *b"smhd";
+pub const STCO: [u8; 4] = *b"stco";
+pub const STSC: [u8; 4] = *b"stsc";
+pub const STSD: [u8; 4] = *b"stsd";
+pub const STTS: [u8; 4] = *b"stts";
+pub const STSZ: [u8; 4] = *b"stsz";
+pub const URL_: [u8; 4] = *b"url ";
+
+static SIMPLE_CONTAINERS: [[u8; 4]; 27] = [
+    MOOV,
+    TRAK,
+    MDIA,
+    MINF,
+    DINF,
+    STBL,
+    UDTA,
+    ilst::ILST,
+    ilst::XALB,
+    ilst::XART,
+    ilst::XARTC,
+    ilst::XCMT,
+    ilst::XDAY,
+    ilst::XGEN,
+    ilst::XGRP,
+    ilst::XLRY,
+    ilst::XNAM,
+    ilst::XTOO,
+    ilst::XWRT,
+    ilst::AART,
+    ilst::COVR,
+    ilst::CPIL,
+    ilst::DISK,
+    ilst::GNRE,
+    ilst::PGAP,
+    ilst::TMPO,
+    ilst::TRKN,
+];
+static FULL_CONTAINERS: [[u8; 4]; 1] = [META];
+static FULL_BOXES: [[u8; 4]; 14] = [
+    ilst::ESDS,
+    ilst::DATA,
+    DREF,
+    HDLR,
+    MDHD,
+    MVHD,
+    TKHD,
+    SMHD,
+    STCO,
+    STSC,
+    STSD,
+    STTS,
+    STSZ,
+    URL_,
+];
+
 // TODO(jdr): Consider replacing the Buf trait usage with
 // something simpler like a macro that does:
 //      let(int_bytes, rest) = split_at(std::mem::size_of::<u32>)
@@ -91,38 +169,6 @@ impl fmt::Debug for MP4Box<'_> {
 //
 // Ok, not simpler exactly but perhaps with less cost than the get_u32()
 // call actually resovles into.
-
-static simple_container_kinds: [&[u8; 4]; 27] = [
-    b"moov",                   // Moov Container for all Metadata  /moov
-    b"trak",                   // Trak Container /moov/trak
-    b"mdia",                   // Media Infirmation for Track  /moov/trak/mdia
-    b"minf",                   // Median Infomration    /moov/trak/mdia/minf
-    b"dinf",                   // Data Information Box /moov/trak/mdia/dinf
-    b"stbl",                   // Sample Table Box      /moov/trak/mdia/minf/stbl
-    b"udta",                   // User Data Container   /moov/udta
-    b"ilst", // Item LST - Apple Meta Data block /moov/udata/meta/ilst/[x1,x2,x3,x4]
-    &[0xa9, b'a', b'l', b'b'], // Album
-    &[0xa9, b'a', b'r', b't'], // Artist
-    &[0xa9, b'A', b'R', b'T'], // Artist
-    &[0xa9, b'c', b'm', b't'], // Comment
-    &[0xa9, b'd', b'a', b'y'], // Year
-    &[0xa9, b'g', b'e', b'n'], // Genre
-    &[0xa9, b'g', b'r', b'p'], // Genre
-    &[0xa9, b'l', b'y', b'r'], // Lyric
-    &[0xa9, b'n', b'a', b'm'], // Title/Name
-    &[0xa9, b't', b'o', b'o'], // Encoder
-    &[0xa9, b'w', b'r', b't'], // wrtier/author
-    b"aART", // Artist
-    b"covr", // Cover ARt
-    b"cpil", // Compilation boolean
-    b"disk", // Disk Number and Total Disks
-    b"gnre", // Genre
-    b"pgap", // Program Gap
-    b"tmpo", // Tempo guide
-    b"trkn", // Track Number and Total Tracks.
-];
-static full_container_kinds: [&[u8; 4]; 1] = [b"meta"]; // Meta Data  /moov/meta & /moov/trak/meta /mmov/udata/meta
-static full_box_kinds: [&[u8; 4]; 4] = [b"mvhd", b"tkhd", b"data", b"stsd"];
 
 // This does not read in the whole box and parse it, just enough
 // to determine the size, and type(kind) of box along with.
@@ -143,23 +189,15 @@ fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
     // Check strings for Box type: Full/Simple Container/Not-Container
     // TODO(jdr): consider a hash, or some other clever mechanism
     // to do this quickly.
-    let bt = if full_box_kinds.iter().find(|v| kind == &v[..]).is_some() {
+    let bt = if FULL_BOXES.iter().find(|v| kind == &v[..]).is_some() {
         let vf = get_version_flags(buf);
         read += 4;
         BoxType::Full(vf)
-    } else if full_container_kinds
-        .iter()
-        .find(|v| kind == &v[..])
-        .is_some()
-    {
+    } else if FULL_CONTAINERS.iter().find(|v| kind == &v[..]).is_some() {
         let vf = get_version_flags(buf);
         read += 4;
         BoxType::FullContainer(vf)
-    } else if simple_container_kinds
-        .iter()
-        .find(|v| kind == &v[..])
-        .is_some()
-    {
+    } else if SIMPLE_CONTAINERS.iter().find(|v| kind == &v[..]).is_some() {
         BoxType::SimpleContainer
     } else {
         BoxType::Simple
@@ -173,7 +211,6 @@ fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
         kind: kind,
         buf: rest,
         box_type: bt,
-        path: Vec::new(),
     };
 
     // Move this buffer point along.
@@ -259,62 +296,5 @@ impl fmt::Debug for FtypBox<'_> {
             String::from_utf8_lossy(self.brand),
             cb,
         )
-    }
-}
-
-// #[derive(Debug)]
-pub enum DataBoxContent<'a> {
-    Byte(u8),
-    Text(&'a [u8]),
-    Data(&'a [u8]),
-}
-
-impl fmt::Debug for DataBoxContent<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            DataBoxContent::Byte(v) => write!(f, "Byte({:04x})", v),
-            DataBoxContent::Text(v) => write!(f, "Text({:?})", String::from_utf8_lossy(v)),
-            DataBoxContent::Data(v) => {
-                let l = v.len();
-                if l > 32 {
-                    write!(
-                        f,
-                        "Data({:x?} ... {:x?} len = {}",
-                        &v[0..8],
-                        &v[l - 8..l],
-                        l
-                    )
-                } else {
-                    write!(f, "Data({:x?})", v)
-                }
-            }
-        }
-    }
-}
-
-const IMPLICIT_FLAG: u32 = 0;
-const TEXT_FLAG: u32 = 1;
-const JPEG_FLAG: u32 = 13;
-const PNG_FLAG: u32 = 14;
-const BYTE_FLAG: u32 = 21;
-
-// TODO(jdr): Think about getting rid of the buf.get_XX() calls.
-// They modify the buffer point, which is probably not what we really
-// want.
-pub fn get_data_box<'a>(bx: &'a mut MP4Box) -> DataBoxContent<'a> {
-    // println!("box: {:?}", bx);
-    // println!("buff: {:x?}", bx.buf);
-    // data box has a predfeined 0
-    bx.buf.get_u32();
-    if let BoxType::Full(vf) = &bx.box_type {
-        match vf.flag {
-            TEXT_FLAG => DataBoxContent::Text(&bx.buf),
-            IMPLICIT_FLAG | JPEG_FLAG | PNG_FLAG => DataBoxContent::Data(&bx.buf),
-            BYTE_FLAG => DataBoxContent::Byte(bx.buf.get_u8()),
-            _ => DataBoxContent::Byte(b'0'), // The true cases here is an error.
-        }
-    } else {
-        // This branch of the if is an error, so maybe we should return one?
-        panic!("Read a data box that wasn't a BoxType:;Full()\n{:?}", bx);
     }
 }

@@ -32,6 +32,7 @@ impl LevelStack {
     pub fn new(size: usize) -> LevelStack {
         let mut l = LevelStack { levels: vec![] };
         l.push_new(size, b"STRT");
+        // l.push_new(size, &[b'S', b'T', b'.', b'/']);
         l
     }
 
@@ -147,6 +148,9 @@ impl LevelStack {
     }
 
     // A string representation of the path.
+    // Note: We remeove the STRT sentitnel at the head
+    // and replace it with a single '/'.
+    // so paths look like: /moov/trak/mdia/minf/stbl
     pub fn path_string(&self) -> String {
         let mut s = "/".to_string();
         if self.len() > 0 {

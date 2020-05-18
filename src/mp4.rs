@@ -1040,7 +1040,7 @@ fn read_version_flag(buf: &mut impl Buf) -> (usize, u8, u32) {
 /// returns the major brand, the minor version, and the compatible brands.
 fn read_ftyp(buf: &mut impl Buf) -> ([u8; 4], u32, Vec<[u8; 4]>) {
     // println!("Calling read_ftyp");
-    let (size, t) = read_box_header(buf); // t = fytp.
+    let (size, _t) = read_box_header(buf); // t = fytp.
     let mut brand: [u8; 4] = [0; 4];
     buf.copy_to_slice(&mut brand);
     let version = buf.get_u32();
@@ -1145,7 +1145,7 @@ fn read_data(buf: &mut impl Buf, size: usize) -> (u8, u32, DataBoxContent) {
 
 fn read_apple_info_box(buf: &mut impl Buf) -> (String, String, DataBoxContent) {
     let (s, t) = read_box_header(buf);
-    let (r, v, f) = read_version_flag(buf);
+    let (_r, _v, _f) = read_version_flag(buf);
     if &t != b"mean" {
         eprintln!(
             "Expected box type {:?}, got: {:}",
@@ -1165,13 +1165,13 @@ fn read_apple_info_box(buf: &mut impl Buf) -> (String, String, DataBoxContent) {
     let (nb_s, t) = read_box_header(buf); // this read 4 + 4 = 8 bytes
     match &t {
         b"name" => {
-            let (_, nb_v, nb_f) = read_version_flag(buf); // this read 4 bytes of v/f. set to 0/0
+            let (_, _nb_v, _nb_f) = read_version_flag(buf); // this read 4 bytes of v/f. set to 0/0
             let mut name_val = String::new();
             for _ in 0..(nb_s - 12) {
                 name_val.push(buf.get_u8() as char);
             }
             // println!("\tName box size: {}", nb_s);
-            let (v, _, d) = read_data_box(buf);
+            let (_v, _, d) = read_data_box(buf);
             return (mean_val, name_val, d);
             // let (nb_v, nb_f, data) = read_data(buf, name_box_s);
         }

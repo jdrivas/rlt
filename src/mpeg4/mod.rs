@@ -5,7 +5,9 @@ use util::LevelStack;
 use crate::file;
 use crate::file::FileFormat;
 use crate::track;
-use boxes::{DataBoxContent, MP4Buffer};
+use boxes::ilst;
+// use boxes::ilst::{get_data_box, DataBoxContent};
+use boxes::MP4Buffer;
 
 use std::error::Error;
 use std::io::{Read, Seek};
@@ -150,22 +152,22 @@ fn get_track_reader<'a>(
     move |b: &mut boxes::MP4Box| {
         match b.kind {
             b"data" => {
-                let db = boxes::get_data_box(b);
+                let db = ilst::get_data_box(b);
                 // println!("DataBoxContent: {:?}", db);
                 match db {
                     // if let DataBoxContent::Text(v) = db {
-                    DataBoxContent::Text(v) => {
+                    ilst::DataBoxContent::Text(v) => {
                         let v = Some(String::from_utf8_lossy(v).to_string());
                         // It's the container box that determines the destination
                         // of the data in the data box.
                         match path.top().unwrap().kind {
-                            [0xa9, b'a', b'l', b'b'] => tk.album = v,
-                            [0xa9, b'n', b'a', b'm'] => tk.title = v,
-                            [0xa9, b'a', b'r', b't'] | [0xa9, b'A', b'R', b'T'] => tk.artist = v,
+                            ilst::XALB => tk.album = v,
+                            ilst::XNAM => tk.title = v,
+                            ilst::XART | ilst::XARTC => tk.artist = v,
                             _ => (),
                         }
                     }
-                    DataBoxContent::Data(v) => match &path.top().unwrap().kind {
+                    ilst::DataBoxContent::Data(v) => match &path.top().unwrap().kind {
                         b"trkn" => {
                             tk.track_number = Some(u16::from_be_bytes([v[2], v[3]]) as u32);
                             tk.track_total = Some(u16::from_be_bytes([v[4], v[5]]) as u32);
