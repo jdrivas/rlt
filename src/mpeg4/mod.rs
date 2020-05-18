@@ -46,8 +46,6 @@ impl file::Decoder for Mpeg4 {
         let mut vbuf = Vec::<u8>::new();
         let _n = r.read_to_end(&mut vbuf);
         let buf = vbuf.as_slice();
-        // read_buf(buf)?;
-        // display_structure(buf);
         let mut tk = track::Track {
             ..Default::default()
         };
@@ -76,14 +74,28 @@ fn display_structure(buf: &[u8]) {
         );
 
         // Implement indenting with the level stack.
-        l.add_box(&b);
+        // Can't put the tabs.push into the update with
+        // call because we can't have two separate mutable
+        // references to tabs 'live' at the same time.
         if b.box_type.is_container() {
             tabs.push('\t');
         }
-
-        l.check_and_finish(|| {
-            tabs.pop();
-        });
+        l.update_with(
+            &b,
+            |_, _| {},
+            |ls| {
+                tabs.pop();
+                if ls.len() > 1 {
+                    if ls.len() > 1 {
+                        println!(
+                            "{}<{}>",
+                            tabs,
+                            String::from_utf8_lossy(&ls.top().unwrap().kind)
+                        );
+                    }
+                }
+            },
+        );
     }
 }
 
@@ -109,11 +121,12 @@ fn read_track(buf: &[u8], mut tk: &mut track::Track) {
 // This meachanism is used so that
 // the fucntion can be pased to the generic
 // reader provided by MP4Box and called in
-// the middle of a for b in boxes {} loop.
+// the middle of a for loop: e.g. for b in boxes {b.read(f)}.
+//
 // TODO(jdr): This is probably more than we need.
 // You could move this whole thing up into
 // read_track and bypass the funcational program noise here.
-// that is instead of:
+// So instead of:
 //
 //      let mut f = get_track_reader(&mut tk, buf.len());
 //      for mut b in &mut boxes {
@@ -121,13 +134,14 @@ fn read_track(buf: &[u8], mut tk: &mut track::Track) {
 //      }
 //
 // You could:
-//
+//   read_track(buf: &[u8], mut tk: &mut track::Track) {
 //      let mut path = LevelStack::new(buf.len());
 //      for mut b in &mut boxes {
 //          match b.kind {
-//            .... // rest of the function below.
+//            .... // rest of the function below including the reference to tk.
 //          }
 //       }
+//   }
 fn get_track_reader<'a>(
     tk: &'a mut track::Track,
     bsize: usize,
@@ -167,16 +181,8 @@ fn get_track_reader<'a>(
             }
             _ => (),
         }
-        // Add this box to the path
-        path.add_box(&b);
-        // If we're at the end of a container(s)
-        // pop the relevant path elements of the stack.
-        while path.end() {
-            path.pop();
-            if path.len() == 0 {
-                break;
-            }
-        }
+        // Update the path with this box.
+        path.update(b);
     }
 }
 

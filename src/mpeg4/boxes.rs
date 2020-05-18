@@ -93,14 +93,14 @@ impl fmt::Debug for MP4Box<'_> {
 // call actually resovles into.
 
 static simple_container_kinds: [&[u8; 4]; 27] = [
-    b"moov",
-    b"trak",
-    b"udta",
-    b"mdia",
-    b"minf",
-    b"dinf",
-    b"ilst",
-    b"stbl",
+    b"moov",                   // Moov Container for all Metadata  /moov
+    b"trak",                   // Trak Container /moov/trak
+    b"mdia",                   // Media Infirmation for Track  /moov/trak/mdia
+    b"minf",                   // Median Infomration    /moov/trak/mdia/minf
+    b"dinf",                   // Data Information Box /moov/trak/mdia/dinf
+    b"stbl",                   // Sample Table Box      /moov/trak/mdia/minf/stbl
+    b"udta",                   // User Data Container   /moov/udta
+    b"ilst", // Item LST - Apple Meta Data block /moov/udata/meta/ilst/[x1,x2,x3,x4]
     &[0xa9, b'a', b'l', b'b'], // Album
     &[0xa9, b'a', b'r', b't'], // Artist
     &[0xa9, b'A', b'R', b'T'], // Artist
@@ -112,17 +112,17 @@ static simple_container_kinds: [&[u8; 4]; 27] = [
     &[0xa9, b'n', b'a', b'm'], // Title/Name
     &[0xa9, b't', b'o', b'o'], // Encoder
     &[0xa9, b'w', b'r', b't'], // wrtier/author
-    b"aART",
-    b"covr",
-    b"cpil",
-    b"disk",
-    b"gnre",
-    b"pgap",
-    b"tmpo",
-    b"trkn",
+    b"aART", // Artist
+    b"covr", // Cover ARt
+    b"cpil", // Compilation boolean
+    b"disk", // Disk Number and Total Disks
+    b"gnre", // Genre
+    b"pgap", // Program Gap
+    b"tmpo", // Tempo guide
+    b"trkn", // Track Number and Total Tracks.
 ];
-static full_container_kinds: [&[u8; 4]; 1] = [b"meta"];
-static full_box_kinds: [&[u8; 4]; 3] = [b"mvhd", b"tkhd", b"data"];
+static full_container_kinds: [&[u8; 4]; 1] = [b"meta"]; // Meta Data  /moov/meta & /moov/trak/meta /mmov/udata/meta
+static full_box_kinds: [&[u8; 4]; 4] = [b"mvhd", b"tkhd", b"data", b"stsd"];
 
 // This does not read in the whole box and parse it, just enough
 // to determine the size, and type(kind) of box along with.
