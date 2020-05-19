@@ -6,6 +6,7 @@ use crate::file;
 use crate::file::FileFormat;
 use crate::track;
 use boxes::ilst;
+use boxes::mdia;
 use boxes::stbl;
 use boxes::MP4Buffer;
 
@@ -62,7 +63,9 @@ impl file::Decoder for Mpeg4 {
         }));
 
         read_track(buf, &mut tk);
-        // display_structure(buf);
+        println!("Track: {:?}", &tk.title);
+        display_structure(buf);
+        println!("");
 
         Ok(Some(tk))
     }
@@ -165,15 +168,23 @@ fn get_track_reader<'a>(
 ) -> impl FnMut(&mut boxes::MP4Box<'a>) {
     let mut path = LevelStack::new(bsize);
     move |b: &mut boxes::MP4Box| {
+        let format;
+        if let track::CodecFormat::PCM(f) = tk.format.as_mut().unwrap() {
+            format = f;
+        } else {
+            panic!("CodecFormat not attached to track.");
+        }
+
+        let md: &mut track::MPEG4Metadata;
+        if let track::FormatMetadata::MP4(f) = tk.metadata.as_mut().unwrap() {
+            md = f;
+        } else {
+            panic!("Metadata not attached to track.")
+        }
+
         match b.kind {
             ilst::DATA => {
                 let db = ilst::get_data_box(b);
-                let md: &mut track::MPEG4Metadata;
-                if let track::FormatMetadata::MP4(f) = tk.metadata.as_mut().unwrap() {
-                    md = f;
-                } else {
-                    panic!("Metadata not attached to track.")
-                }
 
                 // This used in the data box read as it's
                 // the previous box type (ilst) that determines
@@ -216,13 +227,6 @@ fn get_track_reader<'a>(
                 }
             }
             stbl::STSD => {
-                let format;
-                if let track::CodecFormat::PCM(f) = tk.format.as_mut().unwrap() {
-                    format = f;
-                } else {
-                    panic!("CodecFormat not attached to track.");
-                }
-
                 let mut channels: u16 = 0;
                 let mut fmt: &mut [u8; 4] = &mut [0; 4];
                 stbl::get_short_audio_stsd(
@@ -235,10 +239,23 @@ fn get_track_reader<'a>(
                 format.channels = channels as u8;
 
                 // TODO(jdr): This might be better obtained from somewhere else.
-                // e.g. FTYP for something.
+                // e.g. FTYP.
                 tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
             }
-
+            mdia::MDHD => {
+                let mut creation: u64 = 0;
+                let mut modification: u64 = 0;
+                let mut timescale: u32 = 0;
+                let mut language: u16 = 0;
+                mdia::get_mdhd(
+                    b,
+                    &mut creation,
+                    &mut modification,
+                    &mut timescale,
+                    &mut format.total_samples,
+                    &mut language,
+                );
+            }
             _ => (),
         }
         // Update the path with this box.

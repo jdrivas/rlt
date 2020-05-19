@@ -80,6 +80,6 @@ pub fn get_data_box<'a>(bx: &'a mut MP4Box) -> DataBoxContent<'a> {
         }
     } else {
         // This branch of the if is an error, so maybe we should return one?
-        panic!("Read a data box that wasn't a BoxType:;Full()\n{:?}", bx);
+        panic!("Read a data box that wasn't a BoxType::Full()\n{:?}", bx);
     }
 }

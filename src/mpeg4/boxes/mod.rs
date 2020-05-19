@@ -1,5 +1,6 @@
 extern crate bytes;
 pub mod ilst;
+pub mod mdia;
 pub mod stbl;
 use bytes::buf::Buf;
 use std::fmt;
@@ -95,7 +96,6 @@ impl fmt::Debug for MP4Box<'_> {
 /// Container Boxes
 pub const DINF: [u8; 4] = *b"dinf"; // Data Information Box Container /moov/trak/mdia/dinf
 pub const META: [u8; 4] = *b"meta"; // Meta Data Container /moov/meta & /moov/trak/meta /mmov/udata/meta
-pub const MDIA: [u8; 4] = *b"mdia"; // Media Infirmation for Track  /moov/trak/mdia
 pub const MINF: [u8; 4] = *b"minf"; // Median Infomration Container    /moov/trak/mdia/minf
 pub const MOOV: [u8; 4] = *b"moov"; // Moov Container for all Metadata  /moov
 pub const TRAK: [u8; 4] = *b"trak"; // Trak Container /moov/trak
@@ -104,18 +104,17 @@ pub const UDTA: [u8; 4] = *b"udta"; // User Data Container   /moov/udta
 /// Full Boxes
 pub const DREF: [u8; 4] = *b"dref"; // Data reference. Declares sources of media data. /moov/trak/mdia/minf/dinf
 pub const HDLR: [u8; 4] = *b"hdlr"; // Hnalder general handler header. /moov/trak/mdia, /moov/udata/meta
-pub const MDHD: [u8; 4] = *b"mdhd"; // Media Header /moov/trak/mdia
 pub const MVHD: [u8; 4] = *b"mvhd"; // Movie Header /moov
 pub const TKHD: [u8; 4] = *b"tkhd"; // Track Header /moov/trak
 pub const SMHD: [u8; 4] = *b"smhd";
 pub const URL_: [u8; 4] = *b"url ";
 
 static SIMPLE_CONTAINERS: [[u8; 4]; 27] = [
-    MOOV, // Movie Data Container /moov
-    TRAK, // Track Container /movv/trak
-    MDIA, // Media Data Continaer /mdia
-    MINF, // Media Information Container /moov/trak/mdia/minf
-    DINF, // Data Information Container /moov/trac/mdia/minf/dinf
+    MOOV,       // Movie Data Container /moov
+    TRAK,       // Track Container /movv/trak
+    mdia::MDIA, // Media Data Continaer /mdia
+    MINF,       // Media Information Container /moov/trak/mdia/minf
+    DINF,       // Data Information Container /moov/trac/mdia/minf/dinf
     UDTA, // User Data Container /moov/udata (in practice and followed by meta), /moov/meta/udata (in spec).
     ilst::ILST,
     ilst::XALB,
@@ -143,7 +142,7 @@ static FULL_CONTAINERS: [[u8; 4]; 1] = [META];
 static FULL_BOXES: [[u8; 4]; 14] = [
     DREF,
     HDLR,
-    MDHD,
+    mdia::MDHD,
     MVHD,
     TKHD,
     SMHD,
