@@ -90,6 +90,7 @@ pub enum CodecFormat {
 pub enum FormatMetadata {
   Flac(FlacMetadata),
   ID3(ID3Metadata),
+  MP4(MPEG4Metadata),
 }
 
 #[derive(Debug, Default)]
@@ -101,6 +102,13 @@ pub struct FlacMetadata {
 pub struct ID3Metadata {
   pub text: HashMap<String, Vec<String>>,
   pub comments: HashMap<String, Vec<(String, String, String)>>,
+}
+
+#[derive(Debug, Default)]
+pub struct MPEG4Metadata {
+  pub text: HashMap<String, String>,
+  // pub data: HashMap<String, [u8]>, TODO(jdr): Figure out how to capture Data typed metadata.
+  pub byte: HashMap<String, u8>,
 }
 
 // Track Definition

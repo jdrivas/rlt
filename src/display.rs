@@ -321,6 +321,10 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
           println!("No Comments.")
         }
       }
+
+      track::FormatMetadata::MP4(mmd) => {
+        println!("{:?}", mmd);
+      }
     }
   }
 

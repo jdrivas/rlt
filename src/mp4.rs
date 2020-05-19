@@ -1171,7 +1171,7 @@ fn read_apple_info_box(buf: &mut impl Buf) -> (String, String, DataBoxContent) {
                 name_val.push(buf.get_u8() as char);
             }
             // println!("\tName box size: {}", nb_s);
-            let (_v, _, d) = read_data_box(buf);
+            let (_mv, _, d) = read_data_box(buf);
             return (mean_val, name_val, d);
             // let (nb_v, nb_f, data) = read_data(buf, name_box_s);
         }

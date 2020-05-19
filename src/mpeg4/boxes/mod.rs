@@ -1,5 +1,6 @@
 extern crate bytes;
 pub mod ilst;
+pub mod stbl;
 use bytes::buf::Buf;
 use std::fmt;
 
@@ -15,7 +16,8 @@ pub struct MP4Buffer<'a, 'b> {
 /// with the box.
 pub struct MP4Box<'a> {
     pub size: u32,
-    pub kind: &'a [u8],
+    // pub kind: &'a [u8],
+    pub kind: [u8; 4],
     pub buf: &'a [u8],
     pub box_type: BoxType,
     // pub path: Vec<&'a [u8]>,
@@ -79,7 +81,7 @@ impl fmt::Debug for MP4Box<'_> {
         write!(
             f,
             "{:?}  [{:?}] {:?} Buffer[{}]",
-            String::from_utf8_lossy(self.kind),
+            String::from_utf8_lossy(&self.kind[..]),
             self.size,
             self.box_type,
             self.buf.len(),
@@ -97,31 +99,24 @@ pub const MDIA: [u8; 4] = *b"mdia"; // Media Infirmation for Track  /moov/trak/m
 pub const MINF: [u8; 4] = *b"minf"; // Median Infomration Container    /moov/trak/mdia/minf
 pub const MOOV: [u8; 4] = *b"moov"; // Moov Container for all Metadata  /moov
 pub const TRAK: [u8; 4] = *b"trak"; // Trak Container /moov/trak
-pub const STBL: [u8; 4] = *b"stbl"; // Sample Table Box Container     /moov/trak/mdia/minf/stbl
 pub const UDTA: [u8; 4] = *b"udta"; // User Data Container   /moov/udta
 
 /// Full Boxes
-pub const DREF: [u8; 4] = *b"dref";
-pub const HDLR: [u8; 4] = *b"hdlr";
-pub const MDHD: [u8; 4] = *b"mdhd";
-pub const MVHD: [u8; 4] = *b"mvhd";
-pub const TKHD: [u8; 4] = *b"tkhd";
+pub const DREF: [u8; 4] = *b"dref"; // Data reference. Declares sources of media data. /moov/trak/mdia/minf/dinf
+pub const HDLR: [u8; 4] = *b"hdlr"; // Hnalder general handler header. /moov/trak/mdia, /moov/udata/meta
+pub const MDHD: [u8; 4] = *b"mdhd"; // Media Header /moov/trak/mdia
+pub const MVHD: [u8; 4] = *b"mvhd"; // Movie Header /moov
+pub const TKHD: [u8; 4] = *b"tkhd"; // Track Header /moov/trak
 pub const SMHD: [u8; 4] = *b"smhd";
-pub const STCO: [u8; 4] = *b"stco";
-pub const STSC: [u8; 4] = *b"stsc";
-pub const STSD: [u8; 4] = *b"stsd";
-pub const STTS: [u8; 4] = *b"stts";
-pub const STSZ: [u8; 4] = *b"stsz";
 pub const URL_: [u8; 4] = *b"url ";
 
 static SIMPLE_CONTAINERS: [[u8; 4]; 27] = [
-    MOOV,
-    TRAK,
-    MDIA,
-    MINF,
-    DINF,
-    STBL,
-    UDTA,
+    MOOV, // Movie Data Container /moov
+    TRAK, // Track Container /movv/trak
+    MDIA, // Media Data Continaer /mdia
+    MINF, // Media Information Container /moov/trak/mdia/minf
+    DINF, // Data Information Container /moov/trac/mdia/minf/dinf
+    UDTA, // User Data Container /moov/udata (in practice and followed by meta), /moov/meta/udata (in spec).
     ilst::ILST,
     ilst::XALB,
     ilst::XART,
@@ -142,22 +137,23 @@ static SIMPLE_CONTAINERS: [[u8; 4]; 27] = [
     ilst::PGAP,
     ilst::TMPO,
     ilst::TRKN,
+    stbl::STBL,
 ];
 static FULL_CONTAINERS: [[u8; 4]; 1] = [META];
 static FULL_BOXES: [[u8; 4]; 14] = [
-    ilst::ESDS,
-    ilst::DATA,
     DREF,
     HDLR,
     MDHD,
     MVHD,
     TKHD,
     SMHD,
-    STCO,
-    STSC,
-    STSD,
-    STTS,
-    STSZ,
+    ilst::ESDS,
+    ilst::DATA,
+    stbl::STCO,
+    stbl::STSC,
+    stbl::STSD,
+    stbl::STTS,
+    stbl::STSZ,
     URL_,
 ];
 
@@ -206,12 +202,13 @@ fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
     // Buffer not read yet.
     let rest = &buf[0..(s as usize - read)];
 
-    let b = MP4Box {
+    let mut b = MP4Box {
         size: s,
-        kind: kind,
+        kind: [0; 4],
         buf: rest,
         box_type: bt,
     };
+    b.kind.copy_from_slice(kind);
 
     // Move this buffer point along.
     if !b.box_type.is_container() {

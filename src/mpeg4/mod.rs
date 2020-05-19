@@ -6,7 +6,7 @@ use crate::file;
 use crate::file::FileFormat;
 use crate::track;
 use boxes::ilst;
-// use boxes::ilst::{get_data_box, DataBoxContent};
+use boxes::stbl;
 use boxes::MP4Buffer;
 
 use std::error::Error;
@@ -18,6 +18,9 @@ const FTYP_HEADER: &[u8] = b"ftyp";
 const M42_HEADER: &[u8] = b"mp42";
 const M4A_HEADER: &[u8] = b"M4A ";
 
+/// Takes the first few bytes and indicates
+/// by returning a FileFormat if this module
+/// can parse the file for metadata.
 pub fn identify(b: &[u8]) -> Option<FileFormat> {
     let mut ft = None;
     if b.len() >= 12 {
@@ -51,15 +54,27 @@ impl file::Decoder for Mpeg4 {
         let mut tk = track::Track {
             ..Default::default()
         };
+        tk.metadata = Some(track::FormatMetadata::MP4(track::MPEG4Metadata {
+            ..Default::default()
+        }));
+        tk.format = Some(track::CodecFormat::PCM(track::PCMFormat {
+            ..Default::default()
+        }));
 
         read_track(buf, &mut tk);
-        display_structure(buf);
+        // display_structure(buf);
 
         Ok(Some(tk))
     }
 }
 
-fn display_structure(buf: &[u8]) {
+/// Display the structure an MP4 buffer on stdout.
+/// This prints the Box Type followed by the size
+/// a designtation as of Simple, Full, and Container
+/// as well the path to the particular box.
+/// Finally, this prints structure out using indentation
+/// to indicate conatiners.
+pub fn display_structure(buf: &[u8]) {
     let b: &mut &[u8] = &mut &(*buf);
     let boxes = MP4Buffer { buf: b };
 
@@ -69,7 +84,7 @@ fn display_structure(buf: &[u8]) {
         println!(
             "{}{:?}  [{:?}] {:?} - Path: {:?}",
             tabs,
-            String::from_utf8_lossy(b.kind),
+            String::from_utf8_lossy(&b.kind[..]),
             b.size,
             b.box_type,
             l.path_string(),
@@ -151,36 +166,79 @@ fn get_track_reader<'a>(
     let mut path = LevelStack::new(bsize);
     move |b: &mut boxes::MP4Box| {
         match b.kind {
-            b"data" => {
+            ilst::DATA => {
                 let db = ilst::get_data_box(b);
-                // println!("DataBoxContent: {:?}", db);
+                let md: &mut track::MPEG4Metadata;
+                if let track::FormatMetadata::MP4(f) = tk.metadata.as_mut().unwrap() {
+                    md = f;
+                } else {
+                    panic!("Metadata not attached to track.")
+                }
+
+                // This used in the data box read as it's
+                // the previous box type (ilst) that determines
+                // the key for the metadata.
+                let k = path.top().unwrap().kind;
                 match db {
                     // if let DataBoxContent::Text(v) = db {
                     ilst::DataBoxContent::Text(v) => {
-                        let v = Some(String::from_utf8_lossy(v).to_string());
-                        // It's the container box that determines the destination
-                        // of the data in the data box.
-                        match path.top().unwrap().kind {
-                            ilst::XALB => tk.album = v,
-                            ilst::XNAM => tk.title = v,
-                            ilst::XART | ilst::XARTC => tk.artist = v,
+                        let val = String::from_utf8_lossy(v).to_string();
+
+                        // Insert all the string pairs into the general metadata.
+                        md.text
+                            .insert(String::from_utf8_lossy(&k[..]).to_string(), val.clone());
+
+                        // Then capture the specifics based on
+                        // the box previous ilst box type.
+                        match k {
+                            ilst::XALB => tk.album = Some(val),
+                            ilst::XNAM => tk.title = Some(val),
+                            ilst::XART | ilst::XARTC => tk.artist = Some(val),
                             _ => (),
                         }
                     }
                     ilst::DataBoxContent::Data(v) => match &path.top().unwrap().kind {
-                        b"trkn" => {
+                        &ilst::TRKN => {
                             tk.track_number = Some(u16::from_be_bytes([v[2], v[3]]) as u32);
                             tk.track_total = Some(u16::from_be_bytes([v[4], v[5]]) as u32);
                         }
-                        b"disk" => {
+                        &ilst::DISK => {
                             tk.disk_number = Some(u16::from_be_bytes([v[2], v[3]]) as u32);
                             tk.disk_total = Some(u16::from_be_bytes([v[4], v[5]]) as u32);
                         }
                         _ => (),
                     },
-                    _ => (),
+                    ilst::DataBoxContent::Byte(v) => {
+                        // TODO(jdr): Consider adding a text translation.
+                        md.byte
+                            .insert(String::from_utf8_lossy(&k[..]).to_string(), v);
+                    }
                 }
             }
+            stbl::STSD => {
+                let format;
+                if let track::CodecFormat::PCM(f) = tk.format.as_mut().unwrap() {
+                    format = f;
+                } else {
+                    panic!("CodecFormat not attached to track.");
+                }
+
+                let mut channels: u16 = 0;
+                let mut fmt: &mut [u8; 4] = &mut [0; 4];
+                stbl::get_short_audio_stsd(
+                    b,
+                    &mut fmt,
+                    &mut channels,
+                    &mut format.bits_per_sample,
+                    &mut format.sample_rate,
+                );
+                format.channels = channels as u8;
+
+                // TODO(jdr): This might be better obtained from somewhere else.
+                // e.g. FTYP for something.
+                tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
+            }
+
             _ => (),
         }
         // Update the path with this box.

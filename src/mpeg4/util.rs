@@ -1,9 +1,9 @@
 use super::boxes;
 use std::fmt;
 
-// This got built because doing the various jobs with recursion
-// got me into lots of fights with the borrow checker.
-// So I just decieded that this was an easier path.
+/// This got built because doing the various jobs with recursion
+/// got me into lots of fights with the borrow checker.
+/// So I just decieded that this was an easier path.
 #[derive(Clone, Copy)]
 pub struct BoxCounter {
     pub size: usize,
@@ -23,6 +23,9 @@ impl fmt::Debug for BoxCounter {
     }
 }
 
+/// A stack of BoxCounters used to capture containers and when they've been filled.
+/// This particularly useful for understanding the context in which a box has been
+/// found (ie the path to the box) as well as for doing things like
 #[derive(Debug)]
 pub struct LevelStack {
     levels: Vec<BoxCounter>,
@@ -36,22 +39,22 @@ impl LevelStack {
         l
     }
 
-    // Add a box and calcuate it's impact on the stack
-    // 1. We increment the count against the current container
-    // by the size of the new box. This box will take up
-    // so many bytes of against the total in the enclosing container.
-    // 2. If this is a container, add this box to the stack to account
-    // for comming enclosed boxes.
+    /// Add a box and calcuate it's impact on the stack
+    /// 1. We increment the count against the current container
+    /// by the size of the new box. This box will take up
+    /// so many bytes of against the total in the enclosing container.
+    /// 2. If this is a container, add this box to the stack to account
+    /// for comming enclosed boxes.
     pub fn add_box(&mut self, b: &boxes::MP4Box) {
         self.top_mut().unwrap().count += b.size as usize;
         if b.box_type.is_container() {
-            self.push_new(b.buf.len(), b.kind);
+            self.push_new(b.buf.len(), &b.kind);
         }
     }
 
-    // Adds the box and the runs the closure provdied.
-    // Useful for example to increae the tab length with the box is a conatiner.
-    // The closure is called with this LevelStack and the box that was passed in.
+    /// Adds the box and the runs the closure provdied.
+    /// Useful for example to increae the tab length with the box is a conatiner.
+    /// The closure is called with this LevelStack and the box that was passed in.
     pub fn add_box_with(
         &mut self,
         b: &boxes::MP4Box,
@@ -61,20 +64,20 @@ impl LevelStack {
         f(self, b);
     }
 
-    // Determine if container at the top of the stack
-    // has been completed, and if so remove the box from
-    // the stack. Continue to remove compledted containers
-    // until you find one that is not complete or you exhause the
-    // stack.
+    /// Determine if container at the top of the stack
+    /// has been completed, and if so remove the box from
+    /// the stack. Continue to remove compledted containers
+    // /until you find one that is not complete or you exhause the
+    /// stack.
     pub fn check_and_complete(&mut self) {
         self.check_and_complete_with(|_| {}); // TODO(jdr): This really wants an Option to a closure.
     }
 
-    // Check if the top container is complete, and if so remove and continue checking,
-    // with a convenience for executing a closure
-    // once for each container to be removed from the stack and so,
-    // logically, when the container has been completed.
-    // Useful for managing indentation in a display, for example.
+    /// Check if the top container is complete, and if so remove and continue checking,
+    /// with a convenience for executing a closure
+    /// once for each container to be removed from the stack and so,
+    /// logically, when the container has been completed.
+    /// Useful for managing indentation in a display, for example.
     pub fn check_and_complete_with(&mut self, mut f: impl FnMut(&LevelStack)) {
         while self.complete() {
             f(self);
@@ -114,31 +117,32 @@ impl LevelStack {
     }
 
     /// Has the container on the top of the stack been completed?
-    /// Practically this means
+    /// Practically this means if the size is equal to the count.
     pub fn complete(&self) -> bool {
         self.levels.last().unwrap().size == self.levels.last().unwrap().count
     }
 
-    // Take the top box off the stack
+    /// Take the top box off the stack.
     pub fn pop(&mut self) -> Option<BoxCounter> {
         self.levels.pop()
     }
 
-    // Get the box top box from the stack
+    /// Get the top box from the stack as a mutable reference.
     pub fn top_mut(&mut self) -> Option<&mut BoxCounter> {
         self.levels.last_mut()
     }
 
+    /// Get the top box from the stack.
     pub fn top(&self) -> Option<&BoxCounter> {
         self.levels.last()
     }
 
-    // How many boxes on the stack.
+    /// How many boxes on the stack.
     pub fn len(&self) -> usize {
         self.levels.len()
     }
 
-    // What's the path to the current top box.
+    /// What's the path to the current top box.
     pub fn path(&self) -> Vec<&[u8]> {
         let mut v = Vec::new();
         for l in &self.levels {
@@ -147,10 +151,10 @@ impl LevelStack {
         v
     }
 
-    // A string representation of the path.
-    // Note: We remeove the STRT sentitnel at the head
-    // and replace it with a single '/'.
-    // so paths look like: /moov/trak/mdia/minf/stbl
+    /// A string representation of the path.
+    /// Note: We remeove the STRT sentitnel at the head
+    /// and replace it with a single '/'.
+    /// so paths look like: /moov/trak/mdia/minf/stbl
     pub fn path_string(&self) -> String {
         let mut s = "/".to_string();
         if self.len() > 0 {
