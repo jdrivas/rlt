@@ -104,7 +104,7 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
               pn,
             ]);
           }
-          track::CodecFormat::MPEG(f) => {
+          track::CodecFormat::MPEG3(f) => {
             table.add_row(row![
               t.tracks_display(),
               t.title.as_ref().unwrap_or(&NONE_SHORT.to_string()),
@@ -113,6 +113,17 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
               format!("{:>3} Kbps", f.bitrate.to_string()),
               f.version_string(),
               f.layer_string(),
+              t.file_format.as_ref().unwrap_or(&NONE_SHORT.to_string()),
+              pn,
+            ]);
+          }
+          track::CodecFormat::MPEG4(f) => {
+            table.add_row(row![
+              t.tracks_display(),
+              t.title.as_ref().unwrap_or(&NONE_SHORT.to_string()),
+              format_duration(&f.duration(), true),
+              format!("{} KHz", (f.sample_rate() / 1000.0)),
+              format!("{} bits", f.bits_per_sample.to_string()),
               t.file_format.as_ref().unwrap_or(&NONE_SHORT.to_string()),
               pn,
             ]);
@@ -239,8 +250,8 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
         tes.push(Te("Duration", format_duration(&sf.duration(), false)));
       }
 
-      // MPEG
-      track::CodecFormat::MPEG(f) => {
+      // MP3
+      track::CodecFormat::MPEG3(f) => {
         tes.push(Te("Version", f.version_string()));
         tes.push(Te("Layer", f.layer_string()));
         tes.push(Te("Bitrate", format!("{} kbps", f.bitrate.to_string())));
@@ -248,6 +259,24 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
           "Sample Rate",
           format!("{} KHz", f.sample_rate.to_formatted_string(&Locale::en)),
         ));
+      }
+
+      track::CodecFormat::MPEG4(f) => {
+        tes.push(Te(
+          "Sample Rate",
+          // format!("{} Hz", f.sample_rate().to_formatted_string(&Locale::en)),
+          format!("{:08.2} Hz", f.sample_rate(),),
+        ));
+        tes.push(Te(
+          "Sample Size",
+          format!("{} bits", f.bits_per_sample.to_string()),
+        ));
+        tes.push(Te(
+          "Samples",
+          f.total_samples.to_formatted_string(&Locale::en),
+        ));
+        tes.push(Te("Channels", f.channels.to_formatted_string(&Locale::en)));
+        tes.push(Te("Duration", format_duration(&f.duration(), false)));
       }
     }
   }
@@ -323,11 +352,33 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
       }
 
       track::FormatMetadata::MP4(mmd) => {
-        println!("{:?}", mmd);
+        println!("Metadata");
+        if mmd.text.len() > 0 || mmd.byte.len() > 0 {
+          let mut table = Table::new();
+          table.set_format(*FORMAT_CLEAN);
+          table.add_row(row!["Key", "Value"]);
+          if mmd.text.len() > 0 {
+            let mut vs: Vec<_> = mmd.text.iter().collect();
+            vs.sort();
+            for (k, v) in vs {
+              table.add_row(row![k, v]);
+            }
+          }
+          if mmd.byte.len() > 0 {
+            let mut vs: Vec<_> = mmd.byte.iter().collect();
+            vs.sort();
+            for (k, v) in vs {
+              table.add_row(row![k, v]);
+            }
+          }
+          table.printstd();
+        // println!("{:?}", mmd);
+        } else {
+          println!("No metadata.");
+        }
       }
     }
   }
-
   Ok(())
 }
 
@@ -337,7 +388,8 @@ fn title_row(f: &Option<track::CodecFormat>) -> Row {
   if let Some(c) = f {
     match c {
       track::CodecFormat::PCM(_) => pcm_title_row(),
-      track::CodecFormat::MPEG(_) => mpeg_title_row(),
+      track::CodecFormat::MPEG3(_) => mpeg3_title_row(),
+      track::CodecFormat::MPEG4(_) => pcm_title_row(),
     }
   } else {
     pcm_title_row()
@@ -368,7 +420,7 @@ const MPEG_LIST_TITLES: [&str; 9] = [
   "File",
 ];
 
-fn mpeg_title_row() -> Row {
+fn mpeg3_title_row() -> Row {
   let mut r = Row::empty();
   for s in &MPEG_LIST_TITLES {
     r.add_cell(Cell::new(s));

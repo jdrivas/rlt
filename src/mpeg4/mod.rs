@@ -13,30 +13,41 @@ use boxes::MP4Buffer;
 use std::error::Error;
 use std::io::{Read, Seek};
 
-pub struct Mpeg4;
-
-const FTYP_HEADER: &[u8] = b"ftyp";
-const M42_HEADER: &[u8] = b"mp42";
-const M4A_HEADER: &[u8] = b"M4A ";
+#[derive(Default, Debug)]
+pub struct Mpeg4 {
+    brand: String,
+    version: u8,
+    flags: u32,
+    compatible_brands: Vec<String>,
+}
 
 /// Takes the first few bytes and indicates
 /// by returning a FileFormat if this module
 /// can parse the file for metadata.
-pub fn identify(b: &[u8]) -> Option<FileFormat> {
-    let mut ft = None;
-    if b.len() >= 12 {
-        if &b[4..8] == FTYP_HEADER {
-            ft = match &b[8..12] {
-                b if b == M42_HEADER => Some(FileFormat::MPEG4(Mpeg4 {})),
-                b if b == M4A_HEADER => Some(FileFormat::MPEG4(Mpeg4 {})),
-                // b if b == M4B_HEADER => return Some(FileFormat::MP4B),
-                // b if b == M4P_HEADER => return Some(FileFormat::MP4P),
-                _ => None,
-            };
-        }
+pub fn identify(mut b: &[u8]) -> Option<FileFormat> {
+    let mut mp4 = Mpeg4 {
+        ..Default::default()
+    };
+
+    let mut buf: &mut &[u8] = &mut b;
+    let mut bx = boxes::read_box_header(&mut buf);
+
+    let mut br: &[u8] = &[0];
+    let mut cb: Vec<&[u8]> = Vec::new();
+    boxes::get_ftyp_box_values(
+        &mut bx.buf,
+        &mut br,
+        &mut mp4.version,
+        &mut mp4.flags,
+        &mut cb,
+    );
+    mp4.brand = String::from_utf8_lossy(br).to_string();
+    for s in cb {
+        mp4.compatible_brands
+            .push(String::from_utf8_lossy(s).to_string());
     }
 
-    return ft;
+    return Some(file::FileFormat::MPEG4(mp4));
 }
 
 const FORMAT_NAME: &str = "MPEG-4";
@@ -58,10 +69,11 @@ impl file::Decoder for Mpeg4 {
         tk.metadata = Some(track::FormatMetadata::MP4(track::MPEG4Metadata {
             ..Default::default()
         }));
-        tk.format = Some(track::CodecFormat::PCM(track::PCMFormat {
+        tk.format = Some(track::CodecFormat::MPEG4(track::MPEG4AudioFormat {
             ..Default::default()
         }));
 
+        println!("File type: {:?}", self);
         read_track(buf, &mut tk);
         println!("Track: {:?}", &tk.title);
         display_structure(buf);
@@ -169,7 +181,7 @@ fn get_track_reader<'a>(
     let mut path = LevelStack::new(bsize);
     move |b: &mut boxes::MP4Box| {
         let format;
-        if let track::CodecFormat::PCM(f) = tk.format.as_mut().unwrap() {
+        if let track::CodecFormat::MPEG4(f) = tk.format.as_mut().unwrap() {
             format = f;
         } else {
             panic!("CodecFormat not attached to track.");
@@ -234,7 +246,7 @@ fn get_track_reader<'a>(
                     &mut fmt,
                     &mut channels,
                     &mut format.bits_per_sample,
-                    &mut format.sample_rate,
+                    &mut format.sr,
                 );
                 format.channels = channels as u8;
 

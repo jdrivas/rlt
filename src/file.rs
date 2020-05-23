@@ -44,7 +44,7 @@ impl std::fmt::Debug for FileFormat {
 /// see if you can figure out what kind of file you've got.
 /// Return the reader with seek position  SeekFrom::Start(0).
 pub fn identify(mut r: impl Read + Seek) -> Result<Option<FileFormat>, std::io::Error> {
-    let mut buf = [0; 12];
+    let mut buf = [0; 32];
     r.read(&mut buf)?;
     r.seek(SeekFrom::Start(0))?;
 
@@ -54,7 +54,7 @@ pub fn identify(mut r: impl Read + Seek) -> Result<Option<FileFormat>, std::io::
     let ids = [
         flac::identify,
         mpeg4::identify,
-        mp4::identify,
+        // mp4::identify,
         wav::identify,
         mp3::identify,
         // id3::identify,

@@ -3,6 +3,7 @@ use crate::file::{Decoder, FileFormat};
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt;
 use std::fs::File;
 // use std::io::SeekFrom;
 // use std::io::{Read, Seek};
@@ -12,6 +13,15 @@ use std::vec::Vec;
 
 // CodecFormats
 
+#[derive(Debug)]
+pub enum CodecFormat {
+  PCM(PCMFormat),
+  MPEG3(MPEG3Format),
+  MPEG4(MPEG4AudioFormat),
+}
+
+/// PCM Codec Format
+/// Basic PCM sample data.
 #[derive(Default, Debug)]
 pub struct PCMFormat {
   pub sample_rate: u32, // Hertz
@@ -30,16 +40,39 @@ impl PCMFormat {
   }
 }
 
-#[derive(Debug)]
-pub struct MPEGFormat {
+/// MPEG-4 CodecFormat
+#[derive(Default, Debug)]
+pub struct MPEG4AudioFormat {
+  pub sr: u32, // 16.16 fixed point value
+  pub channels: u8,
+  pub bits_per_sample: u16,
+  pub total_samples: u64,
+}
+
+impl MPEG4AudioFormat {
+  pub fn sample_rate(&self) -> f64 {
+    let sr = f64::from(self.sr >> 16);
+    sr
+  }
+
+  pub fn duration(&self) -> Duration {
+    let mut ns = self.total_samples as f64 / self.sample_rate();
+    ns = ns * BILLION as f64;
+    return Duration::from_nanos(ns as u64);
+  }
+}
+
+/// MPEG-3 Codec Format
+/// Representation of MPeg layers 1 - layers 3.
+pub struct MPEG3Format {
   pub bitrate: u16,
   pub sample_rate: u16,
   pub version: MPVersion,
-  pub layer: MPLayer,
+  pub layer: MP3Layer,
   pub duration: Duration,
 }
 
-impl MPEGFormat {
+impl MPEG3Format {
   pub fn version_string(&self) -> String {
     match &self.version {
       MPVersion::Reserved => "Reserved".to_string(),
@@ -52,12 +85,18 @@ impl MPEGFormat {
 
   pub fn layer_string(&self) -> String {
     match &self.layer {
-      MPLayer::Reserved => "Reserved".to_string(),
-      MPLayer::Layer1 => "Layer-1".to_string(),
-      MPLayer::Layer2 => "Layer-2".to_string(),
-      MPLayer::Layer3 => "Layer-3".to_string(),
-      MPLayer::Unknown => "Unknwon".to_string(),
+      MP3Layer::Reserved => "Reserved".to_string(),
+      MP3Layer::Layer1 => "Layer-1".to_string(),
+      MP3Layer::Layer2 => "Layer-2".to_string(),
+      MP3Layer::Layer3 => "Layer-3".to_string(),
+      MP3Layer::Unknown => "Unknwon".to_string(),
     }
+  }
+}
+
+impl fmt::Debug for MPEG3Format {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{} - {}", self.version_string(), self.layer_string())
   }
 }
 
@@ -71,7 +110,7 @@ pub enum MPVersion {
 }
 
 #[derive(Debug)]
-pub enum MPLayer {
+pub enum MP3Layer {
   Reserved,
   Layer1,
   Layer2,
@@ -79,11 +118,7 @@ pub enum MPLayer {
   Unknown,
 }
 
-#[derive(Debug)]
-pub enum CodecFormat {
-  PCM(PCMFormat),
-  MPEG(MPEGFormat),
-}
+/// Format Specific Metadata
 
 // Metadata
 #[derive(Debug)]
@@ -93,17 +128,20 @@ pub enum FormatMetadata {
   MP4(MPEG4Metadata),
 }
 
+/// Flac Format Metadata
 #[derive(Debug, Default)]
 pub struct FlacMetadata {
   pub comments: HashMap<String, Vec<String>>,
 }
 
+/// ID3 Format Metadata
 #[derive(Debug, Default)]
 pub struct ID3Metadata {
   pub text: HashMap<String, Vec<String>>,
   pub comments: HashMap<String, Vec<(String, String, String)>>,
 }
 
+/// MPeg 4 Format Metadata
 #[derive(Debug, Default)]
 pub struct MPEG4Metadata {
   pub text: HashMap<String, String>,
@@ -225,12 +263,12 @@ pub fn files_from(
 /// decoders. Currently we look at: Flac, ID3, and WAV.
 /// Working on mp4.
 pub fn get_track(p: &path::PathBuf) -> Result<Option<Track>, Box<dyn Error>> {
-  let file = File::open(p.as_path())?;
+  let mut file = File::open(p.as_path())?;
 
   // Still not happy with this.
   // Need to figure out how to use the fact that these
   // are all file::Decoders.
-  if let Some(f) = file::identify(&file)? {
+  if let Some(f) = file::identify(&mut file)? {
     match f {
       FileFormat::Flac(mut d) => return Ok(d.get_track(&file)?),
       FileFormat::MPEG4(mut d) => return Ok(d.get_track(&file)?),

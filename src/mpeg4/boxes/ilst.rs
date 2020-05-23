@@ -14,6 +14,7 @@ pub const XLRY: [u8; 4] = [0xa9, b'l', b'y', b'r']; // Lyric
 pub const XNAM: [u8; 4] = [0xa9, b'n', b'a', b'm']; // Title/Name
 pub const XTOO: [u8; 4] = [0xa9, b't', b'o', b'o']; // Encoder
 pub const XWRT: [u8; 4] = [0xa9, b'w', b'r', b't']; // Writer/Author
+pub const ____: [u8; 4] = *b"----"; // Apple special item
 pub const AART: [u8; 4] = *b"aART"; // Artist
 pub const COVR: [u8; 4] = *b"covr"; // Cover ARt
 pub const CPIL: [u8; 4] = *b"cpil"; // Compilation boolean

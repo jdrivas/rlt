@@ -167,3 +167,55 @@ impl LevelStack {
         s
     }
 }
+
+/// Tabs
+///  Helper wrapper for indenting and undenting.
+/// Default to tabs, but could be used to add any single char.
+///  If we find the need we could easily modify it to take strings
+/// instead of chars as the indent token.
+pub struct Tabs {
+    t: String,
+    c: char,
+}
+
+impl Tabs {
+    pub fn new() -> Tabs {
+        Tabs {
+            t: String::new(),
+            c: '\t',
+        }
+    }
+    pub fn new_with(c: char) -> Tabs {
+        Tabs {
+            t: String::new(),
+            c: c,
+        }
+    }
+
+    pub fn indent(&mut self) {
+        self.t.push(self.c);
+    }
+
+    pub fn outdent(&mut self) {
+        self.t.pop();
+    }
+}
+
+impl fmt::Display for Tabs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", &self.t)
+    }
+}
+
+// TODO(jdr): How to get a function/macro tprintln!(), that effectively
+// does: println!("{} ....", tabs);
+// tabs.println()?
+
+/// Get a string from a [u8;4];
+pub fn kind_to_string(k: &[u8; 4]) -> String {
+    String::from_utf8_lossy(k).into_owned()
+}
+
+pub fn u8_to_string(k: &[u8]) -> String {
+    String::from_utf8_lossy(k).into_owned()
+}

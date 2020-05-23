@@ -109,7 +109,7 @@ impl file::Decoder for Mp3 {
             } else {
                 lfd = Duration::new(0, 0);
             }
-            let mf = track::MPEGFormat {
+            let mf = track::MPEG3Format {
                 bitrate: f.bitrate,
                 sample_rate: f.sampling_freq,
                 duration: lf.position + lfd,
@@ -121,14 +121,14 @@ impl file::Decoder for Mp3 {
                     mp3_metadata::Version::Unknown => track::MPVersion::Unknown,
                 },
                 layer: match f.layer {
-                    mp3_metadata::Layer::Reserved => track::MPLayer::Reserved,
-                    mp3_metadata::Layer::Layer1 => track::MPLayer::Layer1,
-                    mp3_metadata::Layer::Layer2 => track::MPLayer::Layer2,
-                    mp3_metadata::Layer::Layer3 => track::MPLayer::Layer3,
-                    mp3_metadata::Layer::Unknown => track::MPLayer::Unknown,
+                    mp3_metadata::Layer::Reserved => track::MP3Layer::Reserved,
+                    mp3_metadata::Layer::Layer1 => track::MP3Layer::Layer1,
+                    mp3_metadata::Layer::Layer2 => track::MP3Layer::Layer2,
+                    mp3_metadata::Layer::Layer3 => track::MP3Layer::Layer3,
+                    mp3_metadata::Layer::Unknown => track::MP3Layer::Unknown,
                 },
             };
-            tk.format = Some(track::CodecFormat::MPEG(mf));
+            tk.format = Some(track::CodecFormat::MPEG3(mf));
         };
 
         // Now use the ID3 package to get the complete set of ID3 tags from
