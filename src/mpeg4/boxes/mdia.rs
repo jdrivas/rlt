@@ -1,8 +1,11 @@
-use crate::mpeg4::boxes::{BoxType, MP4Box};
+use crate::mpeg4::boxes::box_types::{BoxType, ContainerType};
+use crate::mpeg4::boxes::MP4Box;
 use bytes::buf::Buf;
 
-pub const MDIA: [u8; 4] = *b"mdia"; // Mediae Box Container     /moov/trak/mdia
-pub const MDHD: [u8; 4] = *b"mdhd"; // Media Header /moov/trak/mdia
+def_box!(MDIA, b"mdia", ContainerType::Container, false);
+// pub const MDIA: [u8; 4] = *b"mdia"; // Media Box Container     /moov/trak/mdia
+def_box!(MDHD, b"mdhd", ContainerType::NotContainer, true);
+// pub const MDHD: [u8; 4] = *b"mdhd"; // Media Header /moov/trak/mdia
 
 /// Media Header Box
 /// creation and modification times are seconds since midnight 1/1/04 in UTC.
@@ -21,7 +24,7 @@ pub fn get_mdhd<'a>(
     duration: &'a mut u64,
     language: &'a mut u16,
 ) {
-    if let BoxType::Full(vf) = &bx.box_type {
+    if let Some(vf) = &bx.version_flag {
         if vf.version == 1 {
             *creation = bx.buf.get_u64();
             *modification = bx.buf.get_u64();

@@ -1,14 +1,16 @@
 use super::boxes;
+use box_types::{BoxType, ContainerType};
+use boxes::box_types;
 use std::fmt;
 
 /// This got built because doing the various jobs with recursion
 /// got me into lots of fights with the borrow checker.
 /// So I just decieded that this was an easier path.
-#[derive(Clone, Copy)]
+// #[derive(Clone, Copy)]
 pub struct BoxCounter {
     pub size: usize,
     pub count: usize,
-    pub kind: [u8; 4],
+    pub box_type: &'static BoxType,
 }
 
 impl fmt::Debug for BoxCounter {
@@ -16,7 +18,7 @@ impl fmt::Debug for BoxCounter {
         write!(
             f,
             "{:?} - Size: {}, Count: {}",
-            String::from_utf8_lossy(&self.kind),
+            self.box_type.type_str(),
             self.size,
             self.count
         )
@@ -34,7 +36,7 @@ pub struct LevelStack {
 impl LevelStack {
     pub fn new(size: usize) -> LevelStack {
         let mut l = LevelStack { levels: vec![] };
-        l.push_new(size, b"STRT");
+        l.push_new(size, &box_types::BT_NONE);
         // l.push_new(size, &[b'S', b'T', b'.', b'/']);
         l
     }
@@ -45,10 +47,10 @@ impl LevelStack {
     /// so many bytes of against the total in the enclosing container.
     /// 2. If this is a container, add this box to the stack to account
     /// for comming enclosed boxes.
-    pub fn add_box(&mut self, b: &boxes::MP4Box) {
+    pub fn add_box<'a>(&mut self, b: &'a boxes::MP4Box) {
         self.top_mut().unwrap().count += b.size as usize;
-        if b.box_type.is_container() {
-            self.push_new(b.buf.len(), &b.kind);
+        if b.box_type.container != ContainerType::NotContainer {
+            self.push_new(b.buf.len(), &b.box_type);
         }
     }
 
@@ -99,20 +101,18 @@ impl LevelStack {
     pub fn update_with(
         &mut self,
         b: &boxes::MP4Box,
-        a: impl FnMut(&LevelStack, &boxes::MP4Box),
-        c: impl FnMut(&LevelStack),
+        add_f: impl FnMut(&LevelStack, &boxes::MP4Box),
+        cmplt_f: impl FnMut(&LevelStack),
     ) {
-        self.add_box_with(b, a);
-        self.check_and_complete_with(c);
+        self.add_box_with(b, add_f);
+        self.check_and_complete_with(cmplt_f);
     }
 
-    pub fn push_new(&mut self, size: usize, kind: &[u8]) {
-        let mut k: [u8; 4] = [0; 4];
-        k.copy_from_slice(kind);
+    pub fn push_new(&mut self, size: usize, bt: &'static BoxType) {
         self.levels.push(BoxCounter {
             size: size,
             count: 0,
-            kind: k,
+            box_type: bt,
         });
     }
 
@@ -143,10 +143,10 @@ impl LevelStack {
     }
 
     /// What's the path to the current top box.
-    pub fn path(&self) -> Vec<&[u8]> {
+    pub fn path(&self) -> Vec<&str> {
         let mut v = Vec::new();
         for l in &self.levels {
-            v.push(&l.kind[..]);
+            v.push(l.box_type.type_str());
         }
         v
     }
@@ -158,11 +158,7 @@ impl LevelStack {
     pub fn path_string(&self) -> String {
         let mut s = "/".to_string();
         if self.len() > 0 {
-            s += &self.path()[1..] // skip the start marker.
-                .into_iter()
-                .map(|v| String::from_utf8_lossy(v).into_owned())
-                .collect::<Vec<String>>()
-                .join("/")
+            s += &self.path().join("/")
         }
         s
     }

@@ -10,6 +10,7 @@ pub mod flac;
 pub mod id3;
 pub mod mp3;
 pub mod mp4;
+#[macro_use]
 pub mod mpeg4;
 pub mod track;
 pub mod wav;

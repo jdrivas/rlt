@@ -1,3 +1,4 @@
+use crate::mpeg4::boxes::box_types::{BoxType, ContainerType};
 use crate::mpeg4::boxes::MP4Box;
 use bytes::buf::Buf;
 
@@ -5,28 +6,42 @@ use bytes::buf::Buf;
 
 /// Sample Table Box Container  
 /// /moov/trak/mdia/minf/stbl
-pub const STBL: [u8; 4] = *b"stbl";
+def_box!(STBL, b"stbl", ContainerType::Container, false);
+// pub const STBL: [u8; 4] = *b"stbl";
+
 /// Chunk Offsets  
 /// /moov/track/mdia/minf/stbl/stco
-pub const STCO: [u8; 4] = *b"stco";
+def_box!(STCO, b"stco", ContainerType::NotContainer, true);
+// pub const STCO: [u8; 4] = *b"stco";
+
 /// Sample to Chunk  
 /// /moov/track/mdia/minf/stbl/stsc
-pub const STSC: [u8; 4] = *b"stsc";
+def_box!(STSC, b"stsc", ContainerType::NotContainer, true);
+// pub const STSC: [u8; 4] = *b"stsc";
+
 /// Sample Description (Codec types and values (sample rtate channels etc.)  
 /// /moov/track/mdia/minf/stbl/stsd
-pub const STSD: [u8; 4] = *b"stsd";
+def_box!(STSD, b"stsd", ContainerType::Special(4), true);
+
+// pub const STSD: [u8; 4] = *b"stsd";
 /// MPEG 4 Audio SampleEntry Box Kind.  
 /// /moov/track/mdia/minf/stbl/stsd/mp4a
-pub const MP4A: [u8; 4] = *b"mp4a";
+def_box!(MP4A, b"mp4a", ContainerType::Special(28), false);
+// pub const MP4A: [u8; 4] = *b"mp4a";
+
 /// ESDS Audio SampleEntry box.  
 /// /moov/track/mdia/minf/stbl/stsd/mp4a/esds
-pub const ESDS: [u8; 4] = *b"esds";
+def_box!(ESDS, b"esds", ContainerType::NotContainer, true);
+// pub const ESDS: [u8; 4] = *b"esds";
 /// Time to sample.  
 /// /movv/track/mdia/minf/stbl/stts
-pub const STTS: [u8; 4] = *b"stts";
+def_box!(STTS, b"stts", ContainerType::NotContainer, true);
+// pub const STTS: [u8; 4] = *b"stts";
+
 /// Sample Sizes.  
 /// /moov/track/mdia/minf/stbl/stsz
-pub const STSZ: [u8; 4] = *b"stsz";
+def_box!(STSZ, b"stsz", ContainerType::NotContainer, true);
+// pub const STSZ: [u8; 4] = *b"stsz";
 
 // TODO(jdr): This should probably be made into something that can read, video and system
 // files, based on the 4 char format dsecription.
@@ -104,10 +119,10 @@ pub fn get_audio_stsd<'a>(
     //  Sample Entry Box type
     // We expect b"mp4a".
     // Rumour has it that we could get: b"emca", b"samr", b"sawb";
-    let mut se_kind: [u8; 4] = [0; 4];
-    se_kind.copy_from_slice(&bx.buf[0..4]);
+    let se_type = bx.buf.get_u32();
+    // se_kind.copy_from_slice(&bx.buf[0..4]);
     // format.copy_from_slice(&bx.buf[0..4]);
-    bx.buf.advance(4);
+    // bx.buf.advance(4);
 
     // Next there are 6 bytes rserved as 0.
     bx.buf.advance(6);
@@ -151,13 +166,13 @@ pub fn get_audio_stsd<'a>(
         }
         _ => return, // TODO(jdr): Need to error out.
     }
-
+    /*
     // check to see if the BOXEs above
     // are acceptable?
-    match  &se_kind {
+    match  se_type {
         b".mp3" |      // MP3 Audio Sample Type
         b"lpcm" => (), // LPCM (defined in quicktime for, presumably, linear pulse code moduleation) Type
-        &MP4A => (),   // "Expected" MP4 Audio files.
+        MP4A => (),   // "Expected" MP4 Audio files.
         _ => (),       // TODO(jdr): need to error out.
     }
 
@@ -169,4 +184,5 @@ pub fn get_audio_stsd<'a>(
         &ESDS => (),
         _ => (), // TODO(jdr): need to error out.
     }
+    */
 }

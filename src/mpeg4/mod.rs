@@ -1,10 +1,12 @@
 pub mod boxes;
+// pub mod boxes::box_types;
 pub mod util;
 use util::LevelStack;
 
 use crate::file;
 use crate::file::FileFormat;
 use crate::track;
+use boxes::box_types::{BoxType, ContainerType};
 use boxes::ilst;
 use boxes::mdia;
 use boxes::stbl;
@@ -99,7 +101,7 @@ pub fn display_structure(buf: &[u8]) {
         println!(
             "{}{:?}  [{:?}] {:?} - Path: {:?}",
             tabs,
-            String::from_utf8_lossy(&b.kind[..]),
+            b.box_type.type_str(),
             b.size,
             b.box_type,
             l.path_string(),
@@ -109,7 +111,7 @@ pub fn display_structure(buf: &[u8]) {
         // Can't put the tabs.push into the update with
         // call because we can't have two separate mutable
         // references to tabs 'live' at the same time.
-        if b.box_type.is_container() {
+        if b.box_type.container != ContainerType::NotContainer {
             tabs.push('\t');
         }
         l.update_with(
@@ -119,11 +121,7 @@ pub fn display_structure(buf: &[u8]) {
                 tabs.pop();
                 if ls.len() > 1 {
                     if ls.len() > 1 {
-                        println!(
-                            "{}<{}>",
-                            tabs,
-                            String::from_utf8_lossy(&ls.top().unwrap().kind)
-                        );
+                        println!("{}<{}>", tabs, ls.top().unwrap().box_type.type_str());
                     }
                 }
             },
@@ -132,9 +130,10 @@ pub fn display_structure(buf: &[u8]) {
 }
 
 fn read_track(buf: &[u8], mut tk: &mut track::Track) {
+    let mut l = LevelStack::new(buf.len());
     let b: &mut &[u8] = &mut &(*buf);
     let mut boxes = MP4Buffer { buf: b };
-    let mut f = get_track_reader(&mut tk, buf.len());
+    let mut f = get_track_reader(&mut tk, buf.len(), &mut l);
 
     // Visit each box we read the header of
     // and for relevant boxes, and only relevant boxes,
@@ -177,8 +176,9 @@ fn read_track(buf: &[u8], mut tk: &mut track::Track) {
 fn get_track_reader<'a>(
     tk: &'a mut track::Track,
     bsize: usize,
+    path: &'a mut LevelStack,
 ) -> impl FnMut(&mut boxes::MP4Box<'a>) {
-    let mut path = LevelStack::new(bsize);
+    // let mut path = LevelStack::new(bsize);
     move |b: &mut boxes::MP4Box| {
         let format;
         if let track::CodecFormat::MPEG4(f) = tk.format.as_mut().unwrap() {
@@ -194,33 +194,32 @@ fn get_track_reader<'a>(
             panic!("Metadata not attached to track.")
         }
 
-        match b.kind {
-            ilst::DATA => {
+        match b.box_type {
+            &ilst::DATA => {
                 let db = ilst::get_data_box(b);
 
                 // This used in the data box read as it's
                 // the previous box type (ilst) that determines
                 // the key for the metadata.
-                let k = path.top().unwrap().kind;
+                let bt = path.top().unwrap().box_type;
                 match db {
                     // if let DataBoxContent::Text(v) = db {
                     ilst::DataBoxContent::Text(v) => {
                         let val = String::from_utf8_lossy(v).to_string();
 
                         // Insert all the string pairs into the general metadata.
-                        md.text
-                            .insert(String::from_utf8_lossy(&k[..]).to_string(), val.clone());
+                        md.text.insert(bt.type_str().to_string(), val.clone());
 
                         // Then capture the specifics based on
                         // the box previous ilst box type.
-                        match k {
-                            ilst::XALB => tk.album = Some(val),
-                            ilst::XNAM => tk.title = Some(val),
-                            ilst::XART | ilst::XARTC => tk.artist = Some(val),
+                        match bt {
+                            &ilst::XALB => tk.album = Some(val),
+                            &ilst::XNAM => tk.title = Some(val),
+                            &ilst::XART | &ilst::XARTC => tk.artist = Some(val),
                             _ => (),
                         }
                     }
-                    ilst::DataBoxContent::Data(v) => match &path.top().unwrap().kind {
+                    ilst::DataBoxContent::Data(v) => match path.top().unwrap().box_type {
                         &ilst::TRKN => {
                             tk.track_number = Some(u16::from_be_bytes([v[2], v[3]]) as u32);
                             tk.track_total = Some(u16::from_be_bytes([v[4], v[5]]) as u32);
@@ -233,12 +232,11 @@ fn get_track_reader<'a>(
                     },
                     ilst::DataBoxContent::Byte(v) => {
                         // TODO(jdr): Consider adding a text translation.
-                        md.byte
-                            .insert(String::from_utf8_lossy(&k[..]).to_string(), v);
+                        md.byte.insert(bt.type_str().to_string(), v); // TOOO(jdr): Do we want to change the Track Metadata to tak str().
                     }
                 }
             }
-            stbl::STSD => {
+            &stbl::STSD => {
                 let mut channels: u16 = 0;
                 let mut fmt: &mut [u8; 4] = &mut [0; 4];
                 stbl::get_short_audio_stsd(
@@ -254,7 +252,7 @@ fn get_track_reader<'a>(
                 // e.g. FTYP.
                 tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
             }
-            mdia::MDHD => {
+            &mdia::MDHD => {
                 let mut creation: u64 = 0;
                 let mut modification: u64 = 0;
                 let mut timescale: u32 = 0;
@@ -271,7 +269,9 @@ fn get_track_reader<'a>(
             _ => (),
         }
         // Update the path with this box.
-        path.update(b);
+        // path.update(b);
+        path.add_box(b);
+        path.check_and_complete();
     }
 }
 
