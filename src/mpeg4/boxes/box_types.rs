@@ -219,33 +219,28 @@ macro_rules! def_boxes {
 }
 
 def_boxes! {
-    // Essential track boxes for sound
+    // Essential MOOV boxes for sound
     FTYP, 0x66_74_79_70, b"ftyp", ContainerType::NotContainer,  false,  "File Container",                       "/ftyp";
-    TKHD, 0x74_6b_68_64, b"tkhd", ContainerType::NotContainer,  true,   "Track Header",                          "/movv/trak/tkhd";
-    TRAK, 0x74_72_61_6b, b"trak", ContainerType::Container,     false,  "Track Container",                       "/moov/trak";
+    TKHD, 0x74_6b_68_64, b"tkhd", ContainerType::NotContainer,  true,   "Track Header",                         "/movv/trak/tkhd";
+    TRAK, 0x74_72_61_6b, b"trak", ContainerType::Container,     false,  "Track Container",                      "/moov/trak";
     DINF, 0x64_69_6e_66, b"dinf", ContainerType::Container,     false,  "Data Container",                       "//moov/trak/mdia/minf/dinf";
     DREF, 0x64_72_65_66, b"dref", ContainerType::NotContainer,  true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
     HDLR, 0x68_64_6c_72, b"hdlr", ContainerType::NotContainer,  true,   "Handler - general data handler",       "/moov/trak/mdia/hdlr, /movvo,udata/meta/hdlr";
     META, 0x6d_65_74_61, b"meta", ContainerType::Container,     true,   "Metadata Container",                   "/moov/meta, /moov/trak/meta, /moov/udata/meta";
-    MINF, 0x6d_69_6e_66, b"minf", ContainerType::Container,     false,   "Media Information Container",          "/moov/meta, /moov/trak/meta, /moov/udata/meta";
+    MINF, 0x6d_69_6e_66, b"minf", ContainerType::Container,     false,  "Media Information Container",          "/moov/meta, /moov/trak/meta, /moov/udata/meta";
     MDHD, 0x6d_64_68_64, b"mdhd", ContainerType::NotContainer,  true,   "Media Data Header",                    "/moov/trak/mdia/mdhd";
     MDIA, 0x6d_64_69_61, b"mdia", ContainerType::Container,     false,  "Media Container",                      "/moov/trak/mdia";
     MOOV, 0x6d_6f_6f_76, b"moov", ContainerType::Container,     false,  "Top Movie Meta Data Container",        "/moov";
     MVHD, 0x6d_76_68_64, b"mvhd", ContainerType::NotContainer,  true,   "Movie Box Header",                     "/moov/mvhd";
-    SMHD, 0x73_6d_68_64, b"smhd", ContainerType::NotContainer,  true,   "Sound Media Header",                    "/moov/trak/minf/smhd";
-    STBL, 0x73_74_62_6c, b"stbl", ContainerType::Container,     false,      "Sound Data Container",                 "/moov/trak/mdia/minf/stbl";
-    UDTA, 0x75_64_74_61, b"udta", ContainerType::Container,     false,  "User Data Container",                   "/moov/udta";
+    SMHD, 0x73_6d_68_64, b"smhd", ContainerType::NotContainer,  true,   "Sound Media Header",                   "/moov/trak/minf/smhd";
+    STBL, 0x73_74_62_6c, b"stbl", ContainerType::Container,     false,  "Sound Data Container",                 "/moov/trak/mdia/minf/stbl";
+    UDTA, 0x75_64_74_61, b"udta", ContainerType::Container,     false,  "User Data Container",                  "/moov/udta";
 
     // ILST is the apple meta data block
-    ILST, 0x69_6c_73_74, b"ilst", ContainerType::Container,     false, "ILST - Apple metadata container",        "/mnoov/udata/meta/ilst";
-    DISK, 0x64_69_73_6b, b"disk", ContainerType::Container,     false, "Disk number and total disks",            "/moov/udata/meta/ilst/disk";
-    TRKN, 0x7_472_6b_6e, b"trkn", ContainerType::Container,     false, "Track number and total tracks",          "/moov/udata/meta/ilist/trkn";
-
-    // pub const DISK: [u8; 4] = *b"disk"; // Disk Number and Total Disks
-}
-
-macro_rules! def_box {
-    ($x:ident, $y:expr, $z:expr, $v:expr) => {};
+    ILST, 0x69_6c_73_74, b"ilst", ContainerType::Container,     false, "Item List - Apple metadata container",       "/mnoov/udata/meta/ilst";
+    DATA, 0x64_61_74_61, b"data", ContainerType::NotContainer,  true,  "Data box for ILST data",                "/moov/udata/meta/ilist/<ilst-md>/data";
+    DISK, 0x64_69_73_6b, b"disk", ContainerType::Container,     false, "Disk number and total disks",           "/moov/udata/meta/ilst/disk";
+    TRKN, 0x74_72_6b_6e, b"trkn", ContainerType::Container,     false, "Track number and total tracks",         "/moov/udata/meta/ilist/trkn";
 }
 
 // macro_rules! def_box {
