@@ -123,10 +123,10 @@ pub fn display_structure(buf: &[u8]) {
         l.add_box(b);
         while l.complete() {
             tabs.pop();
-            l.pop();
             if l.len() > 1 {
                 println!("{}<{}>", tabs, l.top().unwrap().box_type.code_string());
             }
+            l.pop();
             if l.len() == 0 {
                 break;
             }
@@ -146,20 +146,20 @@ pub fn display_structure(buf: &[u8]) {
     }
 }
 
-fn read_track(buf: &[u8], mut tk: &mut track::Track) {
-    let mut l = LevelStack::new(buf.len());
-    let b: &mut &[u8] = &mut &(*buf);
-    let mut boxes = MP4Buffer { buf: b };
-    let mut f = get_track_reader(&mut tk, buf.len(), &mut l);
+// fn read_track(buf: &[u8], mut tk: &mut track::Track) {
+//     let mut l = LevelStack::new(buf.len());
+//     let b: &mut &[u8] = &mut &(*buf);
+//     let mut boxes = MP4Buffer { buf: b };
+//     let mut f = get_track_reader(&mut tk, buf.len(), &mut l);
 
-    // Visit each box we read the header of
-    // and for relevant boxes, and only relevant boxes,
-    // read the data into the track, with the
-    // the provided tracker reader.
-    for mut b in &mut boxes {
-        b.read(&mut f);
-    }
-}
+//     // Visit each box we read the header of
+//     // and for relevant boxes, and only relevant boxes,
+//     // read the data into the track, with the
+//     // the provided tracker reader.
+//     for mut b in &mut boxes {
+//         b.read(&mut f);
+//     }
+// }
 
 // The returned track reader is a function
 // that will check the kind (box type) of

@@ -83,11 +83,9 @@ pub enum ContainerType {
 /// Box Specificaiton
 ///
 /// BoxSpec identifies properties of a box and carrys the basic informaiton.
-/// To be sure this is reduent with bt_code and bt_id, this is proivded as a conenince
-// TOD(jdr); do we really need to carry around bt_code and bt_id.
+// TOD(jdr); do we really need to carry around bt_id?
 #[derive(PartialEq, Eq)]
 pub struct BoxSpec {
-    // pub bt_code: &String,            // character codes
     pub bt_id: u32,               // 32bit CC equivelant
     pub container: ContainerType, // Indicates if it's a container and full or simple, or other
     pub full: bool,
@@ -97,25 +95,6 @@ impl BoxSpec {
     pub fn code_string(&self) -> String {
         String::from_utf8_lossy(&self.bt_id.to_be_bytes()).to_string()
     }
-
-    // pub fn ref_from(t: u32) -> &'static BoxType {
-    //     match BOX_TYPES.iter().find(|v| v.value() == t) {
-    //         Some(b) => b,
-    //         None => &BT_NONE,
-    //     }
-    // }
-
-    // pub fn value(&self) -> u32 {
-    //     u32::from_be_bytes(*self.cc)
-    // }
-
-    // pub fn type_str(&self) -> &'static str {
-    //     // String::from_utf8_lossy(self.cc).as_ref()
-    //     match std::str::from_utf8(self.cc) {
-    //         Ok(s) => s,
-    //         Err(_) => "error",
-    //     }
-    // }
 }
 
 impl fmt::Debug for BoxSpec {
@@ -141,93 +120,145 @@ impl fmt::Debug for BoxSpec {
     }
 }
 
-// Sentinel
-// TODO(jdr): If the only use is to support a non-return from ret_from, then
-// We can do something else (e.g. Option).
-// pub const BT_NONE: BoxType = BoxType {
-//     cc: b"NONE",
-//     // val: u32::from_be_bytes(*b"NONE"),
-//     container: ContainerType::NotContainer,
-//     full: false,
-// };
+// #[derive(Debug)]
+// pub enum BoxType {
+//     FTYP(BoxSpec),
+//     MOOV(BoxSpec),
+//     TRAK(BoxSpec),
+//     Unknown(BoxSpec),
+// }
 
-#[derive(Debug)]
-pub enum BoxType {
-    FTYP(BoxSpec),
-    MOOV(BoxSpec),
-    TRAK(BoxSpec),
-    Unknown(BoxSpec),
-    // Unknown(u32),
-}
-
-// This
 /// Lookup BoxTypes.
 /// We look up based on hte 32bit BoxType
 /// Which is really a representation of a four character code, e,g: *b"moov".
-impl From<u32> for BoxType {
-    fn from(t: u32) -> BoxType {
-        match t {
-            0x6d_6f_6f_76 => MOOV,
-            0x66_74_79_70 => FTYP,
-            0x74_72_61_6b => TRAK,
-            // BoxType::MOOV(BoxSpec {
-            //     bt_code: "moov",
-            //     bt_id: 0x6d_6f_6f_76,
-            //     container: ContainerType::Container,
-            //     full: false,
-            // }),
-            _ => BoxType::Unknown(BoxSpec {
-                // bt_code: String::from_utf8_lossy(&t.to_be_bytes())
-                //     .to_string()
-                //     .as_str(),
-                bt_id: t,
-                container: ContainerType::NotContainer,
-                full: false,
-            }), //
+// impl From<u32> for BoxType {
+//     fn from(t: u32) -> BoxType {
+//         match t {
+//             0x6d_6f_6f_76 => MOOV,
+//             0x66_74_79_70 => FTYP,
+//             0x74_72_61_6b => TRAK,
+//             _ => BoxType::Unknown(BoxSpec {
+//                 // bt_code: String::from_utf8_lossy(&t.to_be_bytes())
+//                 //     .to_string()
+//                 //     .as_str(),
+//                 bt_id: t,
+//                 container: ContainerType::NotContainer,
+//                 full: false,
+//             }), //
+//         }
+//     }
+// }
+
+// impl BoxType {
+//     pub fn spec(&self) -> &BoxSpec {
+//         match self {
+//             BoxType::FTYP(s) | BoxType::MOOV(s) | BoxType::TRAK(s) | BoxType::Unknown(s) => s,
+//         }
+//     }
+//     pub fn code_string(&self) -> String {
+//         self.spec().code_string()
+//     }
+// }
+
+// const FTYP: BoxType = BoxType::FTYP(BoxSpec {
+//     bt_id: 0x66_74_79_70,
+//     container: ContainerType::NotContainer,
+//     full: false,
+// });
+// const MOOV: BoxType = BoxType::MOOV(BoxSpec {
+//     bt_id: 0x6d_6f_6f_76,
+//     container: ContainerType::Container,
+//     full: false,
+// });
+// const TRAK: BoxType = BoxType::TRAK(BoxSpec {
+//     bt_id: 0x74_72_61_6b,
+//     container: ContainerType::Container,
+//     full: false,
+// });
+
+macro_rules! def_boxes {
+    ($($box_name:ident, $id:literal, $cc:expr, $container:expr, $full:expr, $comment_name:literal, $comment_path:literal;) * ) => {
+
+        #[derive(Debug)]
+        pub enum BoxType {
+            $($box_name(BoxSpec)), *,
+            Unknown(BoxSpec),
         }
-    }
+
+        /// $comment_name
+        /// $comment_path
+        $(pub const $box_name: BoxType = BoxType::$box_name(BoxSpec{bt_id: $id, container: $container, full: $full}); )*
+
+
+        impl BoxType {
+            pub fn spec(&self) -> &BoxSpec {
+                match self {
+                    $(BoxType::$box_name(s) |)* BoxType::Unknown(s) => s,
+                }
+            }
+
+            pub fn code_string(&self) -> String {
+                self.spec().code_string()
+            }
+        }
+
+        impl From<u32> for BoxType {
+            fn from(t: u32) -> BoxType {
+                match t {
+                    $($id => $box_name,)*
+                    _ => BoxType::Unknown(BoxSpec {
+                        bt_id: t,
+                        container: ContainerType::NotContainer,
+                        full: false,
+                    }),
+                }
+            }
+        }
+
+    };
 }
 
-impl BoxType {
-    pub fn spec(&self) -> &BoxSpec {
-        match self {
-            BoxType::FTYP(s) | BoxType::MOOV(s) | BoxType::TRAK(s) | BoxType::Unknown(s) => s,
-        }
-    }
-    pub fn code_string(&self) -> String {
-        self.spec().code_string()
+def_boxes! {
+    // Essential track boxes for sound
+    FTYP, 0x66_74_79_70, b"ftyp", ContainerType::NotContainer,  false,  "File Container",                       "/ftyp";
+    TKHD, 0x74_6b_68_64, b"tkhd", ContainerType::NotContainer,  true,   "Track Header",                          "/movv/trak/tkhd";
+    TRAK, 0x74_72_61_6b, b"trak", ContainerType::Container,     false,  "Track Container",                       "/moov/trak";
+    DINF, 0x64_69_6e_66, b"dinf", ContainerType::Container,     false,  "Data Container",                       "//moov/trak/mdia/minf/dinf";
+    DREF, 0x64_72_65_66, b"dref", ContainerType::NotContainer,  true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
+    HDLR, 0x68_64_6c_72, b"hdlr", ContainerType::NotContainer,  true,   "Handler - general data handler",       "/moov/trak/mdia/hdlr, /movvo,udata/meta/hdlr";
+    META, 0x6d_65_74_61, b"meta", ContainerType::Container,     true,   "Metadata Container",                   "/moov/meta, /moov/trak/meta, /moov/udata/meta";
+    MINF, 0x6d_69_6e_66, b"minf", ContainerType::Container,     false,   "Media Information Container",          "/moov/meta, /moov/trak/meta, /moov/udata/meta";
+    MDHD, 0x6d_64_68_64, b"mdhd", ContainerType::NotContainer,  true,   "Media Data Header",                    "/moov/trak/mdia/mdhd";
+    MDIA, 0x6d_64_69_61, b"mdia", ContainerType::Container,     false,  "Media Container",                      "/moov/trak/mdia";
+    MOOV, 0x6d_6f_6f_76, b"moov", ContainerType::Container,     false,  "Top Movie Meta Data Container",        "/moov";
+    MVHD, 0x6d_76_68_64, b"mvhd", ContainerType::NotContainer,  true,   "Movie Box Header",                     "/moov/mvhd";
+    SMHD, 0x73_6d_68_64, b"smhd", ContainerType::NotContainer,  true,   "Sound Media Header",                    "/moov/trak/minf/smhd";
+    STBL, 0x73_74_62_6c, b"stbl", ContainerType::Container,     false,      "Sound Data Container",                 "/moov/trak/mdia/minf/stbl";
+    UDTA, 0x75_64_74_61, b"udta", ContainerType::Container,     false,  "User Data Container",                   "/moov/udta";
 
-        //     // Special case handling for Unknown types.
-        //     match self {
-        //         BoxType::Unknown(t) => String::from_utf8_lossy(&t.to_be_bytes())
-        //             .to_owned()
-        //             .to_string(),
-        //         _ => {
-        //             if let Some(spec) = self.spec() {
-        //                 spec.bt_code.to_string()
-        //             } else {
-        //                 panic!("Error - Code string, tried to get a spec for BoxSpec that wasn't unknown or known.");
-        //             }
-        //         }
-        //     }
-    }
+    // ILST is the apple meta data block
+    ILST, 0x69_6c_73_74, b"ilst", ContainerType::Container,     false, "ILST - Apple metadata container",        "/mnoov/udata/meta/ilst";
+    DISK, 0x64_69_73_6b, b"disk", ContainerType::Container,     false, "Disk number and total disks",            "/moov/udata/meta/ilst/disk";
+    TRKN, 0x7_472_6b_6e, b"trkn", ContainerType::Container,     false, "Track number and total tracks",          "/moov/udata/meta/ilist/trkn";
+
+    // pub const DISK: [u8; 4] = *b"disk"; // Disk Number and Total Disks
 }
 
-const FTYP: BoxType = BoxType::FTYP(BoxSpec {
-    bt_id: 0x66_74_79_70,
-    container: ContainerType::NotContainer,
-    full: false,
-});
-const MOOV: BoxType = BoxType::MOOV(BoxSpec {
-    bt_id: 0x6d_6f_6f_76,
-    container: ContainerType::Container,
-    full: false,
-});
-const TRAK: BoxType = BoxType::TRAK(BoxSpec {
-    bt_id: 0x74_72_61_6b,
-    container: ContainerType::Container,
-    full: false,
-});
+macro_rules! def_box {
+    ($x:ident, $y:expr, $z:expr, $v:expr) => {};
+}
+
+// macro_rules! def_box {
+//     ($id:ident , $def:expr , $cont:expr , $fl:expr) => {
+//         pub const $id: BoxSpec = BoxSpec {
+//             code: $def,
+//             //  val: 0x64_61_74_61,
+//             container: $cont,
+//             full: $fl,
+//         };
+//     };
+// }
+
 // const MOVE: BT = BT::MOOV(BoxType {
 //     cc: b"moov",
 //     container: ContainerType::Container,
@@ -363,57 +394,7 @@ macro_rules! def_box {
 
 // Containers
 
-/// Data Information Box Container
-/// /moov/trak/mdia/dinf
-def_box!(DINF, b"dinf", ContainerType::Container, false);
-// pub const DINF: [u8; 4] = *b"dinf";
-/// File Type Box
-/// This occurs before any variable-length box.
-def_box!(FTYP, b"ftyp", ContainerType::NotContainer, false);
 
-/// Meta Data Container
-/// /moov/meta & /moov/trak/meta
-/// /mmov/udata/meta
-def_box!(META, b"meta", ContainerType::Container, true);
-
-/// Median Infomration Container
-/// /moov/trak/mdia/minf
-def_box!(MINF, b"minf", ContainerType::Container, false);
-
-/// Moov Container for all Metadata
-/// /moov
-def_box!(MOOV, b"moov", ContainerType::Container, false);
-
-/// Trak Container
-/// /moov/trak
-def_box!(TRAK, b"trak", ContainerType::Container, false);
-/// User Data Container
-/// /moov/udta
-def_box!(UDTA, b"udta", ContainerType::Container, false);
-
-// Full Boxes
-/// Data reference. Declares sources of media data.
-/// /moov/trak/mdia/minf/dinf
-def_box!(DREF, b"dref", ContainerType::NotContainer, true);
-
-/// Hanlder general handler header.
-/// /moov/trak/mdia, /moov/udata/meta
-def_box!(HDLR, b"hdlr", ContainerType::NotContainer, true);
-
-/// Movie Header
-/// /moov
-def_box!(MVHD, b"mvhd", ContainerType::NotContainer, true);
-
-/// Track Header
-/// /moov/trak
-def_box!(TKHD, b"tkhd", ContainerType::NotContainer, true);
-
-/// Sound Media Header
-/// /moov/trak/minf/smhd
-def_box!(SMHD, b"smhd", ContainerType::NotContainer, true);
-
-/// URL
-def_box!(URL_, b"url ", ContainerType::NotContainer, true);
 
 const BOX_TYPES: [&'static BoxType; 26] = [
     &BT_NONE,
