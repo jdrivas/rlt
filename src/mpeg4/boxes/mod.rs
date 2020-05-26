@@ -6,7 +6,7 @@ pub mod ilst;
 pub mod mdia;
 pub mod stbl;
 
-use box_types::{BoxType, ContainerType};
+use box_types::{BoxSpec, BoxType, ContainerType};
 // use crate::mpeg4::util;
 use bytes::buf::Buf;
 // use std::collections::HashMap;
@@ -21,17 +21,17 @@ pub struct MP4Buffer<'a, 'b> {
 }
 
 // TODO(jdr): The below needs to be fit into MP4Box.
-pub enum BoxTypeHolder {
-    Known(BoxType),   // These are the ones we know.
-    Unknown([u8; 4]), // These are the ones we just pick up along the way and may want to display.
-}
+// pub enum BoxTypeHolder {
+//     Known(BoxType),   // These are the ones we know.
+//     Unknown([u8; 4]), // These are the ones we just pick up along the way and may want to display.
+// }
 
 /// Holds header information from the box
 /// and the buffer for the data assocaited
 /// with the box.
 pub struct MP4Box<'a> {
     pub size: u32,
-    pub box_type: &'static BoxType,
+    pub box_type: BoxType,
     pub buf: &'a [u8],
     pub version_flag: Option<VersionFlag>,
 }
@@ -60,9 +60,8 @@ impl fmt::Debug for MP4Box<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{:?}  [{:?}] {:?} Buffer[{}]",
-            // String::from_utf8_lossy(&self.kind[..]),
-            self.box_type.type_str(),
+            "{:?}  [{:10?}] {:?} Buffer[{}]",
+            self.box_type.code_string(),
             self.size,
             self.box_type,
             self.buf.len(),
@@ -75,33 +74,6 @@ pub struct VersionFlag {
     pub version: u8,
     pub flag: u32,
 }
-
-/// Captures the Simple and the Full Box
-/// definitions (with or without Version & Flags)
-/// and captures container versus not a conatiner.
-// #[derive(Debug)]
-// pub enum BoxType {
-//     Simple,
-//     Full(VersionFlag),
-//     SimpleContainer,
-//     FullContainer(VersionFlag),
-// }
-
-// impl BoxType {
-//     pub fn is_full(&self) -> bool {
-//         match self {
-//             BoxType::Simple | BoxType::SimpleContainer => false,
-//             _ => true,
-//         }
-//     }
-
-//     pub fn is_container(&self) -> bool {
-//         match self {
-//             BoxType::SimpleContainer | BoxType::FullContainer(_) => true,
-//             _ => false,
-//         }
-//     }
-// }
 
 // TODO(jdr): Consider replacing the Buf trait usage with
 // something simpler like a macro that does:
@@ -117,9 +89,11 @@ pub struct VersionFlag {
 // Version/Flags information if this box is identified as a
 // FullBox (container or otherwise).
 
-/// Read box descriptor reads in the size and 4 character code type, which w
-/// call kind here (because type is a keyword in rust.
-/// It will also assign a function
+/// Read box header reads in the size and 4 character code type as a u32.
+/// This type is used to match to an enum for the known BoxTypes which
+/// determine the details in the BoxSpec (Box/FullBox, Container/NotContainer.)
+/// In the caes that the type is not known and Unknown type which can at
+/// least be printed out is provided.
 pub fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
     // Read box header: [sssstttt]
     // s = 1 byte of size; 4 total.
@@ -131,46 +105,58 @@ pub fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
 
     let bt = buf.get_u32();
     read += 4;
-    let bt = BoxType::ref_from(bt);
 
-    // For full boxes, pick up the version and flags.
-    // It would not be entirely unreasonable to pick
-    // these up in specific box reader functions as needed.
-    // But that seems repititous.
-    let vf = if bt.full {
+    // println!(
+    //     "Read type: {:?}",
+    //     String::from_utf8_lossy(&bt.to_be_bytes())
+    // );
+    // println!("Read Size: {}[{:0x?}]", s, s);
+    let box_type = BoxType::from(bt);
+    let box_spec = box_type.spec();
+
+    // println!("Read Box Type: {:?}", box_type);
+    // println!("\tSpec: {:?}", box_spec);
+
+    // Read the VF
+    let vf = if box_spec.full {
         read += 4;
         Some(get_version_flags(buf))
     } else {
         None
     };
 
-    // There are some container boxes that are not
-    // simply containers, but actually have data in them.
-    // We need to skip past the data to point to the next
-    // box in the continaer.
-    if let ContainerType::Special(skip) = bt.container {
-        // println!("\tSkipping special {:?}", bt);
-        buf.advance(skip as usize);
+    if let ContainerType::Special(skip) = box_spec.container {
+        buf.advance(skip);
         read += skip as usize;
     }
 
     // Buffer not read yet.
+    // println!(
+    //     "Creating rest. Buf.len() {}, Box size: {}, Bytes Read: {}",
+    //     buf.len(),
+    //     s,
+    //     read
+    // );
     let rest = &buf[0..(s as usize - read)];
     // println!("\tRest len: {}", rest.len());
 
-    let b = MP4Box {
-        size: s,
-        buf: rest,
-        box_type: bt,
-        version_flag: vf,
-    };
-
     // Move this buffer pointer along to the end of the box.
-    if b.box_type.container == ContainerType::NotContainer {
+    // This needs to happen after we've created rest.
+    if box_spec.container == ContainerType::NotContainer {
+        // if let Some(spec) = box_spec {
+        //     if spec.container == ContainerType::NotContainer {
         buf.advance(s as usize - read);
     }
+    // } else {
+    //     buf.advance(s as usize - read);
+    // }
 
-    return b;
+    MP4Box {
+        size: s,
+        buf: rest,
+        box_type: box_type,
+        version_flag: vf,
+    }
 }
 
 fn get_version_flags(buf: &mut &[u8]) -> VersionFlag {

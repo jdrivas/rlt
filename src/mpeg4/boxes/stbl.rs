@@ -3,46 +3,47 @@ use crate::mpeg4::boxes::MP4Box;
 use bytes::buf::Buf;
 
 // Sample Table Boxes
-
-/// Sample Table Box Container  
+/*
+/// Sample Table Box Container
 /// /moov/trak/mdia/minf/stbl
 def_box!(STBL, b"stbl", ContainerType::Container, false);
 // pub const STBL: [u8; 4] = *b"stbl";
 
-/// Chunk Offsets  
+/// Chunk Offsets
 /// /moov/track/mdia/minf/stbl/stco
 def_box!(STCO, b"stco", ContainerType::NotContainer, true);
 // pub const STCO: [u8; 4] = *b"stco";
 
-/// Sample to Chunk  
+/// Sample to Chunk
 /// /moov/track/mdia/minf/stbl/stsc
 def_box!(STSC, b"stsc", ContainerType::NotContainer, true);
 // pub const STSC: [u8; 4] = *b"stsc";
 
-/// Sample Description (Codec types and values (sample rtate channels etc.)  
+/// Sample Description (Codec types and values (sample rtate channels etc.)
 /// /moov/track/mdia/minf/stbl/stsd
 def_box!(STSD, b"stsd", ContainerType::Special(4), true);
 
 // pub const STSD: [u8; 4] = *b"stsd";
-/// MPEG 4 Audio SampleEntry Box Kind.  
+/// MPEG 4 Audio SampleEntry Box Kind.
 /// /moov/track/mdia/minf/stbl/stsd/mp4a
 def_box!(MP4A, b"mp4a", ContainerType::Special(28), false);
 // pub const MP4A: [u8; 4] = *b"mp4a";
 
-/// ESDS Audio SampleEntry box.  
+/// ESDS Audio SampleEntry box.
 /// /moov/track/mdia/minf/stbl/stsd/mp4a/esds
 def_box!(ESDS, b"esds", ContainerType::NotContainer, true);
 // pub const ESDS: [u8; 4] = *b"esds";
-/// Time to sample.  
+/// Time to sample.
 /// /movv/track/mdia/minf/stbl/stts
 def_box!(STTS, b"stts", ContainerType::NotContainer, true);
 // pub const STTS: [u8; 4] = *b"stts";
 
-/// Sample Sizes.  
+/// Sample Sizes.
 /// /moov/track/mdia/minf/stbl/stsz
 def_box!(STSZ, b"stsz", ContainerType::NotContainer, true);
 // pub const STSZ: [u8; 4] = *b"stsz";
 
+*/
 // TODO(jdr): This should probably be made into something that can read, video and system
 // files, based on the 4 char format dsecription.
 

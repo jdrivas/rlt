@@ -1,5 +1,5 @@
 use super::boxes;
-use box_types::{BoxType, ContainerType};
+use box_types::{BoxSpec, BoxType, ContainerType};
 use boxes::box_types;
 use std::fmt;
 
@@ -10,15 +10,15 @@ use std::fmt;
 pub struct BoxCounter {
     pub size: usize,
     pub count: usize,
-    pub box_type: &'static BoxType,
+    pub box_type: BoxType, // TODO(jdr): this should probably be a reference.
 }
 
-impl fmt::Debug for BoxCounter {
+impl<'a> fmt::Debug for BoxCounter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "{:?} - Size: {}, Count: {}",
-            self.box_type.type_str(),
+            self.box_type.code_string(),
             self.size,
             self.count
         )
@@ -34,11 +34,9 @@ pub struct LevelStack {
 }
 
 impl LevelStack {
-    pub fn new(size: usize) -> LevelStack {
-        let mut l = LevelStack { levels: vec![] };
-        l.push_new(size, &box_types::BT_NONE);
-        // l.push_new(size, &[b'S', b'T', b'.', b'/']);
-        l
+    // pub fn new(size: usize) -> LevelStack {
+    pub fn new() -> LevelStack {
+        LevelStack { levels: vec![] }
     }
 
     /// Add a box and calcuate it's impact on the stack
@@ -47,68 +45,45 @@ impl LevelStack {
     /// so many bytes of against the total in the enclosing container.
     /// 2. If this is a container, add this box to the stack to account
     /// for comming enclosed boxes.
-    pub fn add_box<'a>(&mut self, b: &'a boxes::MP4Box) {
-        self.top_mut().unwrap().count += b.size as usize;
-        if b.box_type.container != ContainerType::NotContainer {
-            self.push_new(b.buf.len(), &b.box_type);
+    pub fn add_box(&mut self, b: boxes::MP4Box) {
+        if self.levels.len() > 0 {
+            self.levels.last_mut().unwrap().count += b.size as usize;
         }
+
+        if b.box_type.spec().container != ContainerType::NotContainer {
+            self.push_new(b.buf.len(), b.box_type);
+        }
+        // match b.box_type {
+        // BoxType::Unknown(t) => self.push_new(
+        //     b.buf.len(),
+        //     BoxType::Unknown(BoxSpec {
+        //         bt_id: t,
+        //         container: ContainerType::NotContainer,
+        //         full: false,
+        //     }),
+        // ),
+        // _ => {
+        //     if let Some(spec) = &b.box_type.spec() {
+        //         if spec.container != ContainerType::NotContainer {
+        //             self.push_new(b.buf.len(), b.box_type);
+        //         }
+        //     }
+        // }
     }
 
     /// Adds the box and the runs the closure provdied.
     /// Useful for example to increae the tab length with the box is a conatiner.
     /// The closure is called with this LevelStack and the box that was passed in.
-    pub fn add_box_with(
-        &mut self,
-        b: &boxes::MP4Box,
-        mut f: impl FnMut(&LevelStack, &boxes::MP4Box),
-    ) {
-        self.add_box(b);
-        f(self, b);
-    }
+    // pub fn add_box_with(
+    //     &mut self,
+    //     b: boxes::MP4Box,
+    //     mut f: impl FnMut(&LevelStack, &boxes::MP4Box),
+    // ) {
+    //     self.add_box(b);
+    //     f(self, &b);
+    // }
 
-    /// Determine if container at the top of the stack
-    /// has been completed, and if so remove the box from
-    /// the stack. Continue to remove compledted containers
-    // /until you find one that is not complete or you exhause the
-    /// stack.
-    pub fn check_and_complete(&mut self) {
-        self.check_and_complete_with(|_| {}); // TODO(jdr): This really wants an Option to a closure.
-    }
-
-    /// Check if the top container is complete, and if so remove and continue checking,
-    /// with a convenience for executing a closure
-    /// once for each container to be removed from the stack and so,
-    /// logically, when the container has been completed.
-    /// Useful for managing indentation in a display, for example.
-    pub fn check_and_complete_with(&mut self, mut f: impl FnMut(&LevelStack)) {
-        while self.complete() {
-            f(self);
-            self.pop();
-            if self.len() == 0 {
-                break;
-            }
-        }
-    }
-
-    /// Convenience function to add a new box and immediately
-    /// check for completion.
-    pub fn update(&mut self, b: &boxes::MP4Box) {
-        self.add_box(b);
-        self.check_and_complete();
-    }
-
-    /// Convenience with closures used as in add_with, and check_and_complete_with.
-    pub fn update_with(
-        &mut self,
-        b: &boxes::MP4Box,
-        add_f: impl FnMut(&LevelStack, &boxes::MP4Box),
-        cmplt_f: impl FnMut(&LevelStack),
-    ) {
-        self.add_box_with(b, add_f);
-        self.check_and_complete_with(cmplt_f);
-    }
-
-    pub fn push_new(&mut self, size: usize, bt: &'static BoxType) {
+    fn push_new(&mut self, size: usize, bt: BoxType) {
         self.levels.push(BoxCounter {
             size: size,
             count: 0,
@@ -116,10 +91,56 @@ impl LevelStack {
         });
     }
 
+    /// Determine if container at the top of the stack
+    /// has been completed, and if so remove the box from
+    /// the stack. Continue to remove compledted containers
+    // /until you find one that is not complete or you exhause the
+    /// stack.
+    // pub fn check_and_complete(&'a mut self) {
+    //     self.check_and_complete_with(|_| {}); // TODO(jdr): This really wants an Option to a closure.
+    // }
+
+    /// Check if the top container is complete, and if so remove and continue checking,
+    /// with a convenience for executing a closure
+    /// once for each container to be removed from the stack and so,
+    /// logically, when the container has been completed.
+    /// Useful for managing indentation in a display, for example.
+    // pub fn check_and_complete_with('a &mut self, mut f: impl FnMut(&'a LevelStack)) {
+    //     while self.complete() {
+    //         f(self);
+    //         self.pop();
+    //         if self.len() == 0 {
+    //             break;
+    //         }
+    //     }
+    // }
+
+    /// Convenience function to add a new box and immediately
+    /// check for completion.
+    // pub fn update(&'a mut self, b: &'a boxes::MP4Box) {
+    //     self.add_box(b);
+    //     self.check_and_complete();
+    // }
+
+    /// Convenience with closures used as in add_with, and check_and_complete_with.
+    // pub fn update_with(
+    //     &'a mut self,
+    //     b: &'a boxes::MP4Box,
+    //     add_f: impl FnMut(&LevelStack, &boxes::MP4Box),
+    //     cmplt_f: impl FnMut(&LevelStack),
+    // ) {
+    //     self.add_box_with(b, add_f);
+    //     self.check_and_complete_with(cmplt_f);
+    // }
+
     /// Has the container on the top of the stack been completed?
     /// Practically this means if the size is equal to the count.
     pub fn complete(&self) -> bool {
-        self.levels.last().unwrap().size == self.levels.last().unwrap().count
+        if self.levels.len() > 0 {
+            self.levels.last().unwrap().size == self.levels.last().unwrap().count
+        } else {
+            false
+        }
     }
 
     /// Take the top box off the stack.
@@ -128,9 +149,9 @@ impl LevelStack {
     }
 
     /// Get the top box from the stack as a mutable reference.
-    pub fn top_mut(&mut self) -> Option<&mut BoxCounter> {
-        self.levels.last_mut()
-    }
+    // pub fn top_mut(&mut self) -> Option<&mut BoxCounter> {
+    //     self.levels.last_mut()
+    // }
 
     /// Get the top box from the stack.
     pub fn top(&self) -> Option<&BoxCounter> {
@@ -143,10 +164,10 @@ impl LevelStack {
     }
 
     /// What's the path to the current top box.
-    pub fn path(&self) -> Vec<&str> {
+    pub fn path(&self) -> Vec<String> {
         let mut v = Vec::new();
         for l in &self.levels {
-            v.push(l.box_type.type_str());
+            v.push(l.box_type.code_string());
         }
         v
     }

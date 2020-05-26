@@ -76,7 +76,7 @@ impl file::Decoder for Mpeg4 {
         }));
 
         println!("File type: {:?}", self);
-        read_track(buf, &mut tk);
+        // read_track(buf, &mut tk);
         println!("Track: {:?}", &tk.title);
         display_structure(buf);
         println!("");
@@ -95,13 +95,14 @@ pub fn display_structure(buf: &[u8]) {
     let b: &mut &[u8] = &mut &(*buf);
     let boxes = MP4Buffer { buf: b };
 
-    let mut l = LevelStack::new(boxes.buf.len());
+    // let mut l = LevelStack::new(boxes.buf.len());
+    let mut l = LevelStack::new();
     let mut tabs = String::new();
     for b in boxes {
         println!(
-            "{}{:?}  [{:?}] {:?} - Path: {:?}",
+            "{}{:?} [{:?}]    {:?} - Path: {:?}",
             tabs,
-            b.box_type.type_str(),
+            b.box_type.code_string(),
             b.size,
             b.box_type,
             l.path_string(),
@@ -111,21 +112,37 @@ pub fn display_structure(buf: &[u8]) {
         // Can't put the tabs.push into the update with
         // call because we can't have two separate mutable
         // references to tabs 'live' at the same time.
-        if b.box_type.container != ContainerType::NotContainer {
+        if b.box_type.spec().container != ContainerType::NotContainer {
+            // if let Some(spec) = b.box_type.spec() {
+            //     if spec.container != ContainerType::NotContainer {
             tabs.push('\t');
+            // }
         }
-        l.update_with(
-            &b,
-            |_, _| {},
-            |ls| {
-                tabs.pop();
-                if ls.len() > 1 {
-                    if ls.len() > 1 {
-                        println!("{}<{}>", tabs, ls.top().unwrap().box_type.type_str());
-                    }
-                }
-            },
-        );
+
+        // println!("Adding box: {:?} to {:?}", b, l);
+        l.add_box(b);
+        while l.complete() {
+            tabs.pop();
+            l.pop();
+            if l.len() > 1 {
+                println!("{}<{}>", tabs, l.top().unwrap().box_type.code_string());
+            }
+            if l.len() == 0 {
+                break;
+            }
+        }
+        // l.update_with(
+        //     &b,
+        //     |_, _| {},
+        //     |ls| {
+        //         tabs.pop();
+        //         if ls.len() > 1 {
+        //             if ls.len() > 1 {
+        //                 println!("{}<{}>", tabs, ls.top().unwrap().box_type.code_string());
+        //             }
+        //         }
+        //     },
+        // );
     }
 }
 
@@ -173,6 +190,7 @@ fn read_track(buf: &[u8], mut tk: &mut track::Track) {
 //          }
 //       }
 //   }
+/*
 fn get_track_reader<'a>(
     tk: &'a mut track::Track,
     bsize: usize,
@@ -274,6 +292,7 @@ fn get_track_reader<'a>(
         path.check_and_complete();
     }
 }
+*/
 
 // fn read_buf(buf: &[u8]) -> Result<(), Box<dyn Error>> {
 //     let b: &mut &[u8] = &mut &(*buf);
