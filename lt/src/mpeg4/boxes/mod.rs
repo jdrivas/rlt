@@ -1,5 +1,4 @@
 extern crate bytes;
-// use lazy_static; // make sure extern crate with macro_use is defined in top/lib.rs
 #[macro_use]
 pub mod box_types;
 pub mod ilst;
@@ -7,11 +6,8 @@ pub mod mdia;
 pub mod stbl;
 
 use box_types::{BoxSpec, BoxType, ContainerType};
-// use crate::mpeg4::util;
 use bytes::buf::Buf;
-// use std::collections::HashMap;
 use std::fmt;
-// use std::sync::Mutex;
 
 /// Holds the buffer and supports
 /// iteration over the MP4Boxes
@@ -19,12 +15,6 @@ use std::fmt;
 pub struct MP4Buffer<'a, 'b> {
     pub buf: &'b mut &'a [u8],
 }
-
-// TODO(jdr): The below needs to be fit into MP4Box.
-// pub enum BoxTypeHolder {
-//     Known(BoxType),   // These are the ones we know.
-//     Unknown([u8; 4]), // These are the ones we just pick up along the way and may want to display.
-// }
 
 /// Holds header information from the box
 /// and the buffer for the data assocaited

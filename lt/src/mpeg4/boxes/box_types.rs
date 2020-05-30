@@ -1,6 +1,6 @@
 use crate::mpeg4::boxes;
 use crate::mpeg4::boxes::{ilst, mdia, stbl};
-use lt_macro::box_db;
+use lt_macro::define_boxes;
 use std::convert::TryFrom;
 use std::fmt;
 
@@ -109,192 +109,80 @@ macro_rules! def_boxes {
 // 2. Can probably get rid fo the b"abcd" and turn it directly into "abcd" , since that's what 
 // the macro does anyway. On the other hand being able to direclty use the four character codes could
 // be handy?
-box_db! {
-    FTYP, b"ftyp",   ContainerType::NotContainer,    false,  "File Container",                       "/ftyp";
-    DINF, b"dinf",   ContainerType::Container,       false,  "Data Container",                       "//moov/trak/mdia/minf/dinf";
-    DREF, b"dref",   ContainerType::NotContainer,    true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
-    HDLR, b"hdlr",   ContainerType::NotContainer,    true,   "Handler - general data handler",       "/moov/trak/mdia/hdlr, /movvo,udata/meta/hdlr";
-    META, b"meta",   ContainerType::Container,       true,   "Metadata Container",                   "/moov/meta, /moov/trak/meta, /moov/udata/meta";
-    MINF, b"minf",   ContainerType::Container,       false,  "Media Information Container",          "/moov/meta, /moov/trak/meta, /moov/udata/meta";
-    MDHD, b"mdhd",   ContainerType::NotContainer,    true,   "Media Data Header",                    "/moov/trak/mdia/mdhd";
-    MDIA, b"mdia",   ContainerType::Container,       false,  "Media Container",                      "/moov/trak/mdia";
-    MOOV, b"moov",   ContainerType::Container,       false,  "Top Movie Meta Data Container",        "/moov";
-    MVHD, b"mvhd",   ContainerType::NotContainer,    true,   "Movie Box Header",                     "/moov/mvhd";
-    SMHD, b"smhd",   ContainerType::NotContainer,    true,   "Sound Media Header",                   "/moov/trak/minf/smhd";
-    STBL, b"stbl",   ContainerType::Container,       false,  "Sound Data Container",                 "/moov/trak/mdia/minf/stbl";
-    TKHD, b"tkhd",   ContainerType::NotContainer,    true,   "Track Header",                         "/movv/trak/tkhd";
-    TRAK, b"trak",   ContainerType::Container,       false,  "Track Container",                      "/moov/trak";
-    UDTA, b"udta",   ContainerType::Container,       false,  "User Data Container",                  "/moov/udta";
+
+// The macros are not really that complicated in spirit.
+// define_boxes, merely parses the table and converts and adds a column between Ident and Code
+// with an integer value literal defined by the treat the 4 character code as a u32 in big-endian format.
+// Then the augmented table is send to the macro_rules defined def_boxes above.
+// I know, that's a lot of machineary to add a column you coud have typed.
+
+// The table below is used to define:
+//  - a BoxType enumeration one for each Ident in the table.
+//  - a constant of the BoxType with the BoxSpec defined for the box type using values from the table.
+//  - a From<u32> for BoxType implementation specifically for doing a lookup and returing the constant
+//    based on the integer representation of the four ascii char code defined in the Mpeg4 spec.
+//  - Implementation of BoxType functions: spec() returning the BoxSpec for a BoxType and code_string
+//    to print the ascii string from the box id integer.
+//
+//  An exmaple of the constant generate for FTYP is:
+//     const FTYP: Boxtype = BoxType::FTYP(BoxSpec{bt_id: 0x66747970, conatiner: ContainerType::NotContainer, full: false});
+//
+// The table below is formed as:
+//    - An identifer used for the Constant and the BoxType enumebrs: eg. FTYP (1st column).
+//    - A byte string for the character code for the box: eg. b"ftyp" (2nd column).
+//    - A bool determining if the box is a FullBox (has a version and flags defined for it). (3rd column).
+//    - A ContainerType that describes if this is a Container, Special Conatiner (really not a pure conatiner), or NotContainer (4th column).
+//    - A description which is currently used in the doc comments for the defined constants. (5th column).
+//    - A path indicating where the box should normally be found in a box container hierarchy (6th column).
+define_boxes! {
+//  Ident Code       Container Type                  Full    Description                             Path  
+    FTYP, b"ftyp",   ContainerType::NotContainer,   false,  "File Container",                       "/ftyp";
+    DINF, b"dinf",   ContainerType::Container,      false,  "Data Container",                       "//moov/trak/mdia/minf/dinf";
+    DREF, b"dref",   ContainerType::NotContainer,   true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
+    HDLR, b"hdlr",   ContainerType::NotContainer,   true,   "Handler - general data handler",       "/moov/trak/mdia/hdlr, /movvo,udata/meta/hdlr";
+    META, b"meta",   ContainerType::Container,      true,   "Metadata Container",                   "/moov/meta, /moov/trak/meta, /moov/udata/meta";
+    MINF, b"minf",   ContainerType::Container,      false,  "Media Information Container",          "/moov/meta, /moov/trak/meta, /moov/udata/meta";
+    MDHD, b"mdhd",   ContainerType::NotContainer,   true,   "Media Data Header",                    "/moov/trak/mdia/mdhd";
+    MDIA, b"mdia",   ContainerType::Container,      false,  "Media Container",                      "/moov/trak/mdia";
+    MOOV, b"moov",   ContainerType::Container,      false,  "Top Movie Meta Data Container",        "/moov";
+    MVHD, b"mvhd",   ContainerType::NotContainer,   true,   "Movie Box Header",                     "/moov/mvhd";
+    SMHD, b"smhd",   ContainerType::NotContainer,   true,   "Sound Media Header",                   "/moov/trak/minf/smhd";
+    TKHD, b"tkhd",   ContainerType::NotContainer,   true,   "Track Header",                         "/movv/trak/tkhd";
+    TRAK, b"trak",   ContainerType::Container,      false,  "Track Container",                      "/moov/trak";
+    UDTA, b"udta",   ContainerType::Container,      false,  "User Data Container",                  "/moov/udta";
+
+    // Ssample Table Boxes
+    STBL, b"stbl",   ContainerType::Container,      false,  "Sample Table Box Container",           "/moov/trak/mdia/minf/stbl";
+    ESDS, b"esds",   ContainerType::NotContainer,   true,   "ESDS Audio SampleEntry box",           "/moov/track/mdia/minf/stbl/stsd/mp4a/esds";
+    // MP4A, b"mp4a",   ContainerType::Special(28),    false,  "MPEG 4 Audio SampleEntry Box Kind",    "/moov/track/mdia/minf/stbl/stsd/mp4a";
+    STCO, b"stco",   ContainerType::NotContainer,   true,   "Chunk Offsets",                        "/moov/track/mdia/minf/stbl/stco";
+    STSC, b"stsc",   ContainerType::NotContainer,   true,   "Sample to Chunk",                      "/moov/track/mdia/minf/stbl/stsc";
+    // STSD, b"stsd",   ContainerType::Special(4),     true,   "Sample Description"                    "/moov/track/mdia/minf/stbl/stsd";
+    STTS, b"stts",   ContainerType::NotContainer,   true,   "Time to sample",                       "/movv/track/mdia/minf/stbl/stts";
+    STSZ, b"stsz",   ContainerType::NotContainer,   true,   "Sample Sizes",                         "/moov/track/mdia/minf/stbl/stsz";
+
 
     // ILST is Apples meta data block.
-    ILST, b"ilst",   ContainerType::Container,       false,  "Item List - Apple metadata container", "/mnoov/udata/meta/ilst";
-    DATA, b"data",   ContainerType::NotContainer,    true,   "Data box for ILST data",               "/moov/udata/meta/ilist/<ilst-md>/data";
-    DISK, b"disk",   ContainerType::Container,       false,  "Disk number and total disks",          "/moov/udata/meta/ilst/disk";
-    TRKN, b"trkn",   ContainerType::Container,       false,  "Track number and total tracks",        "/moov/udata/meta/ilist/trkn";
-    XALB, b"\xa9alb",ContainerType::Container,       false,  "Album title",                          "/moov/udata/meta/ilst/©alb";
-    XNAM, b"\xa9nam",ContainerType::Container,       false,  "Title/Name",                           "/moov/udata/meta/ilst/©nam";
+    ILST, b"ilst",   ContainerType::Container,      false,  "Item List - Apple metadata container", "/mnoov/udata/meta/ilst";
+    AART, b"aart",   ContainerType::Container,      false,  "Artist",                              "/moov/udata/meta/ilst/disk";
+    COVR, b"covr",   ContainerType::Container,      false.  "Cover Art",                          "/moov/udata/meta/ilst/covr";
+    CPIL, b"cpil",   ContainerType::Container,      false,  "Compilation boolean"                 "/moov/udata/meta/ilst/cpil";    
+    DATA, b"data",   ContainerType::NotContainer,   true,   "Data box for ILST data",               "/moov/udata/meta/ilist/<ilst-md>/data";
+    DISK, b"disk",   ContainerType::Container,      false,  "Disk number and total disks",          "/moov/udata/meta/ilst/disk";
+    GNRE, b"gnre",   ContainerType::Container,      false,  "Genre",                                "/moov/udata/meta/ilst/gnre";
+    PGAP, b"pgap",   ContainerType::Container,      false,  "Program Gap boolean"                   "/moov/udata/meta/ilst/gnre";
+    TMPO, b"tmpo",   ContainerType::Container,      false,  "Tempo guide"                           "/moov/udata/meta/ilst/tmpo";
+    TRKN, b"trkn",   ContainerType::Container,      false,  "Track number and total tracks",        "/moov/udata/meta/ilist/trkn";
+    XALB, b"\xa9alb",ContainerType::Container,      false,  "Album title",                          "/moov/udata/meta/ilst/©alb";
+    XART, b"\xa9art",ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©art";
+    XARTC,b"\xa9ART",ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©ART";
+    XCMT, b"\xa9cmt",ContainerType::Container,      false,  "Comment",                              "/moov/udata/meta/ilist/©cmt";
+    XDAY, b"\xa9day",ContainerType::Container,      false,  "Year",                                 "/moov/udata/meta/ilist/©day";
+    XGEN, b"\xa9gen",ContainerType::Container,      false,  "Genre"                                 "/moov/udata/meta/ilist/©gen";
+    XGRP, b"\xa9grp",ContainerType::Container,      false,  "Group",                                "/moov/udata/meta/ilist/©grp";
+    XLRY, b"\xa9lyr",ContainerType::Container,      false,  "Lyric",                                "/moov/udata/meta/ilist/©lyr";
+    XNAM, b"\xa9nam",ContainerType::Container,      false,  "Title/Name",                           "/moov/udata/meta/ilst/©nam";
+    XTOO, b"\xa9too",ContainerType::Container,      false,  "Encoder",                              "/moov/udata/meta/ilst/©too";
+    XWRT, b"\xa9wrt",ContainerType::Container,      false,  "Writer/Author",                        "/moov/udata/meta/ilst/©wrt";
+    ____, b"----",   ContainerType::Container,      false,  "Apple Special Item",                   "/moov/udata/meta/ilst/----";
 }
-
-// def_boxes! {
-//     FTYP, 0x66_74_79_70, b"ftyp",   ContainerType::NotContainer,    false,  "File Container",                       "/ftyp";
-// }
-
-// def_boxes! {
-// // box_db! {
-//     //TYPE  VALUE       Char Code   Container                       Full    Description                             PATH
-//     // Essential MOOV boxes for sound
-//     // FTYP, code_to_lit(b"ftyp"), b"ftyp",   ContainerType::NotContainer,    false,  "File Container",                       "/ftyp";
-//     FTYP, 0x66_74_79_70, b"ftyp",   ContainerType::NotContainer,    false,  "File Container",                       "/ftyp";
-//     DINF, 0x64_69_6e_66, b"dinf",   ContainerType::Container,       false,  "Data Container",                       "//moov/trak/mdia/minf/dinf";
-//     DREF, 0x64_72_65_66, b"dref",   ContainerType::NotContainer,    true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
-//     HDLR, 0x68_64_6c_72, b"hdlr",   ContainerType::NotContainer,    true,   "Handler - general data handler",       "/moov/trak/mdia/hdlr, /movvo,udata/meta/hdlr";
-//     META, 0x6d_65_74_61, b"meta",   ContainerType::Container,       true,   "Metadata Container",                   "/moov/meta, /moov/trak/meta, /moov/udata/meta";
-//     MINF, 0x6d_69_6e_66, b"minf",   ContainerType::Container,       false,  "Media Information Container",          "/moov/meta, /moov/trak/meta, /moov/udata/meta";
-//     MDHD, 0x6d_64_68_64, b"mdhd",   ContainerType::NotContainer,    true,   "Media Data Header",                    "/moov/trak/mdia/mdhd";
-//     MDIA, 0x6d_64_69_61, b"mdia",   ContainerType::Container,       false,  "Media Container",                      "/moov/trak/mdia";
-//     MOOV, 0x6d_6f_6f_76, b"moov",   ContainerType::Container,       false,  "Top Movie Meta Data Container",        "/moov";
-//     MVHD, 0x6d_76_68_64, b"mvhd",   ContainerType::NotContainer,    true,   "Movie Box Header",                     "/moov/mvhd";
-//     SMHD, 0x73_6d_68_64, b"smhd",   ContainerType::NotContainer,    true,   "Sound Media Header",                   "/moov/trak/minf/smhd";
-//     STBL, 0x73_74_62_6c, b"stbl",   ContainerType::Container,       false,  "Sound Data Container",                 "/moov/trak/mdia/minf/stbl";
-//     TKHD, 0x74_6b_68_64, b"tkhd",   ContainerType::NotContainer,    true,   "Track Header",                         "/movv/trak/tkhd";
-//     TRAK, 0x74_72_61_6b, b"trak",   ContainerType::Container,       false,  "Track Container",                      "/moov/trak";
-//     UDTA, 0x75_64_74_61, b"udta",   ContainerType::Container,       false,  "User Data Container",                  "/moov/udta";
-
-//     // ILST is the apple meta data block
-//     ILST, 0x69_6c_73_74, b"ilst",   ContainerType::Container,       false,  "Item List - Apple metadata container", "/mnoov/udata/meta/ilst";
-//     DATA, 0x64_61_74_61, b"data",   ContainerType::NotContainer,    true,   "Data box for ILST data",               "/moov/udata/meta/ilist/<ilst-md>/data";
-//     DISK, 0x64_69_73_6b, b"disk",   ContainerType::Container,       false,  "Disk number and total disks",          "/moov/udata/meta/ilst/disk";
-//     TRKN, 0x74_72_6b_6e, b"trkn",   ContainerType::Container,       false,  "Track number and total tracks",        "/moov/udata/meta/ilist/trkn";
-//     XALB, 0xa9_61_6c_62, b"\xa9alb",ContainerType::Container,       false,  "Album title",                          "/moov/udata/meta/ilst/©alb";
-//     XNAM, 0xa9_6e_61_6d, b"\xa9nam",ContainerType::Container,       false,  "Title/Name",                           "/moov/udata/meta/ilst/©nam";
-// }
-
-// Containers
-
-/*
-const BOX_TYPES: [&'static BoxType; 26] = [
-    &BT_NONE,
-    &MOOV,
-    &DINF,
-    &FTYP,
-    &META,
-    &MINF,
-    &TRAK,
-    &UDTA,
-    &DREF,
-    &HDLR,
-    &MVHD,
-    &TKHD,
-    &SMHD,
-    &URL_,
-    &mdia::MDIA,
-    &mdia::MDHD,
-    &stbl::STBL,
-    &stbl::STCO,
-    &stbl::STCO,
-    &stbl::STSC,
-    &stbl::STSD,
-    &stbl::MP4A,
-    &stbl::ESDS,
-    &stbl::STTS,
-    &stbl::STSZ,
-    &ilst::ILST,
-];
-*/
-
-// Container Boxes
-
-// This module for development purposes during the move to new Box Types.
-/*
-pub mod base {
-    /// Data Information Box Container
-    /// /moov/trak/mdia/dinf
-    pub const DINF: [u8; 4] = *b"dinf";
-    /// File Type Box
-    /// This occurs before any variable-length box.
-    pub const FTYP: [u8; 4] = *b"ftyp";
-    /// Meta Data Container
-    /// /moov/meta & /moov/trak/meta
-    /// /mmov/udata/meta
-    pub const META: [u8; 4] = *b"meta";
-    /// Median Infomration Container
-    /// /moov/trak/mdia/minf
-    pub const MINF: [u8; 4] = *b"minf";
-    /// Moov Container for all Metadata
-    /// /moov
-    pub const MOOV: [u8; 4] = *b"moov";
-    /// Trak Container
-    /// /moov/trak
-    pub const TRAK: [u8; 4] = *b"trak";
-    /// User Data Container
-    /// /moov/udta
-    pub const UDTA: [u8; 4] = *b"udta";
-
-    // Full Boxes
-    /// Data reference. Declares sources of media data.
-    /// /moov/trak/mdia/minf/dinf
-    pub const DREF: [u8; 4] = *b"dref";
-    /// Hanlder general handler header.
-    /// /moov/trak/mdia, /moov/udata/meta
-    pub const HDLR: [u8; 4] = *b"hdlr";
-    /// Movie Header
-    /// /moov
-    pub const MVHD: [u8; 4] = *b"mvhd";
-    /// Track Header
-    /// /moov/trak
-    pub const TKHD: [u8; 4] = *b"tkhd";
-    /// Sound Media Header
-    /// /moov/trak/minf/smhd
-    pub const SMHD: [u8; 4] = *b"smhd";
-    /// URL
-    pub const URL_: [u8; 4] = *b"url ";
-}
-
-pub static SIMPLE_CONTAINERS: [[u8; 4]; 29] = [
-    base::MOOV, // Movie Data Container /moov
-    base::TRAK, // Track Container /movv/trak
-    mdia::MDIA, // Media Data Continaer /mdia
-    base::MINF, // Media Information Container /moov/trak/mdia/minf
-    base::DINF, // Data Information Container /moov/trac/mdia/minf/dinf
-    base::UDTA, // User Data Container /moov/udata (in practice and followed by meta), /moov/meta/udata (in spec).
-    ilst::ILST,
-    ilst::XALB,
-    ilst::XART,
-    ilst::XARTC,
-    ilst::XCMT,
-    ilst::XDAY,
-    ilst::XGEN,
-    ilst::XGRP,
-    ilst::XLRY,
-    ilst::XNAM,
-    ilst::XTOO,
-    ilst::XWRT,
-    ilst::AART,
-    ilst::COVR,
-    ilst::CPIL,
-    ilst::DISK,
-    ilst::GNRE,
-    ilst::PGAP,
-    ilst::TMPO,
-    ilst::____,
-    ilst::TRKN,
-    stbl::STBL,
-    stbl::MP4A,
-];
-pub static FULL_CONTAINERS: [[u8; 4]; 3] = [base::META, stbl::STSD, stbl::ESDS];
-pub static FULL_BOXES: [[u8; 4]; 13] = [
-    base::DREF,
-    base::HDLR,
-    mdia::MDHD,
-    base::MVHD,
-    base::TKHD,
-    base::SMHD,
-    ilst::ESDS,
-    ilst::DATA,
-    stbl::STCO,
-    stbl::STSC,
-    stbl::STTS,
-    stbl::STSZ,
-    base::URL_,
-];
-*/
