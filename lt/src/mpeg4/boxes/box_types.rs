@@ -111,17 +111,17 @@ macro_rules! def_boxes {
 // be handy?
 
 // The macros are not really that complicated in spirit.
-// define_boxes, merely parses the table and converts and adds a column between Ident and Code
-// with an integer value literal defined by the treat the 4 character code as a u32 in big-endian format.
-// Then the augmented table is send to the macro_rules defined def_boxes above.
+// define_boxes, merely parses the table and adds a column between Ident and Code
+// with an integer value literal defined by the  converting the 4 character code int literal by treating
+// the cose as a u32 in big-endian format.
 // I know, that's a lot of machineary to add a column you coud have typed.
 
 // The table below is used to define:
 //  - a BoxType enumeration one for each Ident in the table.
-//  - a constant of the BoxType with the BoxSpec defined for the box type using values from the table.
-//  - a From<u32> for BoxType implementation specifically for doing a lookup and returing the constant
+//  - a constant, named by the identifer, of the BoxType with the BoxSpec defined for the box type using values from the table.
+//  - a From<u32> for BoxType implementation specifically for doing a lookup and returing the constant enum
 //    based on the integer representation of the four ascii char code defined in the Mpeg4 spec.
-//  - Implementation of BoxType functions: spec() returning the BoxSpec for a BoxType and code_string
+//  - Implementation of BoxType functions: spec() returning the BoxSpec for a BoxType and code_strin()
 //    to print the ascii string from the box id integer.
 //
 //  An exmaple of the constant generate for FTYP is:
@@ -135,54 +135,54 @@ macro_rules! def_boxes {
 //    - A description which is currently used in the doc comments for the defined constants. (5th column).
 //    - A path indicating where the box should normally be found in a box container hierarchy (6th column).
 define_boxes! {
-//  Ident Code       Container Type                  Full    Description                             Path  
-    FTYP, b"ftyp",   ContainerType::NotContainer,   false,  "File Container",                       "/ftyp";
-    DINF, b"dinf",   ContainerType::Container,      false,  "Data Container",                       "//moov/trak/mdia/minf/dinf";
-    DREF, b"dref",   ContainerType::NotContainer,   true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
-    HDLR, b"hdlr",   ContainerType::NotContainer,   true,   "Handler - general data handler",       "/moov/trak/mdia/hdlr, /movvo,udata/meta/hdlr";
-    META, b"meta",   ContainerType::Container,      true,   "Metadata Container",                   "/moov/meta, /moov/trak/meta, /moov/udata/meta";
-    MINF, b"minf",   ContainerType::Container,      false,  "Media Information Container",          "/moov/meta, /moov/trak/meta, /moov/udata/meta";
-    MDHD, b"mdhd",   ContainerType::NotContainer,   true,   "Media Data Header",                    "/moov/trak/mdia/mdhd";
-    MDIA, b"mdia",   ContainerType::Container,      false,  "Media Container",                      "/moov/trak/mdia";
-    MOOV, b"moov",   ContainerType::Container,      false,  "Top Movie Meta Data Container",        "/moov";
-    MVHD, b"mvhd",   ContainerType::NotContainer,   true,   "Movie Box Header",                     "/moov/mvhd";
-    SMHD, b"smhd",   ContainerType::NotContainer,   true,   "Sound Media Header",                   "/moov/trak/minf/smhd";
-    TKHD, b"tkhd",   ContainerType::NotContainer,   true,   "Track Header",                         "/movv/trak/tkhd";
-    TRAK, b"trak",   ContainerType::Container,      false,  "Track Container",                      "/moov/trak";
-    UDTA, b"udta",   ContainerType::Container,      false,  "User Data Container",                  "/moov/udta";
-
-    // Ssample Table Boxes
-    STBL, b"stbl",   ContainerType::Container,      false,  "Sample Table Box Container",           "/moov/trak/mdia/minf/stbl";
-    ESDS, b"esds",   ContainerType::NotContainer,   true,   "ESDS Audio SampleEntry box",           "/moov/track/mdia/minf/stbl/stsd/mp4a/esds";
-    // MP4A, b"mp4a",   ContainerType::Special(28),    false,  "MPEG 4 Audio SampleEntry Box Kind",    "/moov/track/mdia/minf/stbl/stsd/mp4a";
-    STCO, b"stco",   ContainerType::NotContainer,   true,   "Chunk Offsets",                        "/moov/track/mdia/minf/stbl/stco";
-    STSC, b"stsc",   ContainerType::NotContainer,   true,   "Sample to Chunk",                      "/moov/track/mdia/minf/stbl/stsc";
-    // STSD, b"stsd",   ContainerType::Special(4),     true,   "Sample Description"                    "/moov/track/mdia/minf/stbl/stsd";
-    STTS, b"stts",   ContainerType::NotContainer,   true,   "Time to sample",                       "/movv/track/mdia/minf/stbl/stts";
-    STSZ, b"stsz",   ContainerType::NotContainer,   true,   "Sample Sizes",                         "/moov/track/mdia/minf/stbl/stsz";
-
-
+//  Ident Code          Container Type                 Full    Description                             Path  
+    FTYP, b"ftyp",      ContainerType::NotContainer,   false,  "File Container",                       "/ftyp";
+    DINF, b"dinf",      ContainerType::Container,      false,  "Data Container",                       "//moov/trak/mdia/minf/dinf";
+    DREF, b"dref",      ContainerType::NotContainer,   true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
+    HDLR, b"hdlr",      ContainerType::NotContainer,   true,   "Handler - general data handler",       "/moov/trak/mdia/hdlr, /movvo,udata/meta/hdlr";
+    META, b"meta",      ContainerType::Container,      true,   "Metadata Container",                   "/moov/meta, /moov/trak/meta, /moov/udata/meta";
+    MINF, b"minf",      ContainerType::Container,      false,  "Media Information Container",          "/moov/meta, /moov/trak/meta, /moov/udata/meta";
+    MDHD, b"mdhd",      ContainerType::NotContainer,   true,   "Media Data Header",                    "/moov/trak/mdia/mdhd";
+    MDIA, b"mdia",      ContainerType::Container,      false,  "Media Container",                      "/moov/trak/mdia";
+    MOOV, b"moov",      ContainerType::Container,      false,  "Top Movie Meta Data Container",        "/moov";
+    MVHD, b"mvhd",      ContainerType::NotContainer,   true,   "Movie Box Header",                     "/moov/mvhd";
+    SMHD, b"smhd",      ContainerType::NotContainer,   true,   "Sound Media Header",                   "/moov/trak/minf/smhd";
+    TKHD, b"tkhd",      ContainerType::NotContainer,   true,   "Track Header",                         "/movv/trak/tkhd";
+    TRAK, b"trak",      ContainerType::Container,      false,  "Track Container",                      "/moov/trak";
+    UDTA, b"udta",      ContainerType::Container,      false,  "User Data Container",                  "/moov/udta";
+    
+    // Sample Table Boxes
+    STBL, b"stbl",      ContainerType::Container,      false,  "Sample Table Box Container",           "/moov/trak/mdia/minf/stbl";
+    ESDS, b"esds",      ContainerType::NotContainer,   true,   "ESDS Audio SampleEntry box",           "/moov/track/mdia/minf/stbl/stsd/mp4a/esds";
+    MP4A, b"mp4a",      ContainerType::Special(28),    false,  "MPEG 4 Audio SampleEntry Box",         "/moov/track/mdia/minf/stbl/stsd/mp4a";
+    STCO, b"stco",      ContainerType::NotContainer,   true,   "Chunk Offsets",                        "/moov/track/mdia/minf/stbl/stco";
+    STSC, b"stsc",      ContainerType::NotContainer,   true,   "Sample to Chunk",                      "/moov/track/mdia/minf/stbl/stsc";
+    STSD, b"stsd",      ContainerType::Special(4),     true,   "Sample Description",                    "/moov/track/mdia/minf/stbl/stsd";
+    STTS, b"stts",      ContainerType::NotContainer,   true,   "Time to sample",                       "/movv/track/mdia/minf/stbl/stts";
+    STSZ, b"stsz",      ContainerType::NotContainer,   true,   "Sample Sizes",                         "/moov/track/mdia/minf/stbl/stsz";
+    
+    
     // ILST is Apples meta data block.
-    ILST, b"ilst",   ContainerType::Container,      false,  "Item List - Apple metadata container", "/mnoov/udata/meta/ilst";
-    AART, b"aart",   ContainerType::Container,      false,  "Artist",                              "/moov/udata/meta/ilst/disk";
-    COVR, b"covr",   ContainerType::Container,      false.  "Cover Art",                          "/moov/udata/meta/ilst/covr";
-    CPIL, b"cpil",   ContainerType::Container,      false,  "Compilation boolean"                 "/moov/udata/meta/ilst/cpil";    
-    DATA, b"data",   ContainerType::NotContainer,   true,   "Data box for ILST data",               "/moov/udata/meta/ilist/<ilst-md>/data";
-    DISK, b"disk",   ContainerType::Container,      false,  "Disk number and total disks",          "/moov/udata/meta/ilst/disk";
-    GNRE, b"gnre",   ContainerType::Container,      false,  "Genre",                                "/moov/udata/meta/ilst/gnre";
-    PGAP, b"pgap",   ContainerType::Container,      false,  "Program Gap boolean"                   "/moov/udata/meta/ilst/gnre";
-    TMPO, b"tmpo",   ContainerType::Container,      false,  "Tempo guide"                           "/moov/udata/meta/ilst/tmpo";
-    TRKN, b"trkn",   ContainerType::Container,      false,  "Track number and total tracks",        "/moov/udata/meta/ilist/trkn";
-    XALB, b"\xa9alb",ContainerType::Container,      false,  "Album title",                          "/moov/udata/meta/ilst/©alb";
-    XART, b"\xa9art",ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©art";
-    XARTC,b"\xa9ART",ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©ART";
-    XCMT, b"\xa9cmt",ContainerType::Container,      false,  "Comment",                              "/moov/udata/meta/ilist/©cmt";
-    XDAY, b"\xa9day",ContainerType::Container,      false,  "Year",                                 "/moov/udata/meta/ilist/©day";
-    XGEN, b"\xa9gen",ContainerType::Container,      false,  "Genre"                                 "/moov/udata/meta/ilist/©gen";
-    XGRP, b"\xa9grp",ContainerType::Container,      false,  "Group",                                "/moov/udata/meta/ilist/©grp";
-    XLRY, b"\xa9lyr",ContainerType::Container,      false,  "Lyric",                                "/moov/udata/meta/ilist/©lyr";
-    XNAM, b"\xa9nam",ContainerType::Container,      false,  "Title/Name",                           "/moov/udata/meta/ilst/©nam";
-    XTOO, b"\xa9too",ContainerType::Container,      false,  "Encoder",                              "/moov/udata/meta/ilst/©too";
-    XWRT, b"\xa9wrt",ContainerType::Container,      false,  "Writer/Author",                        "/moov/udata/meta/ilst/©wrt";
-    ____, b"----",   ContainerType::Container,      false,  "Apple Special Item",                   "/moov/udata/meta/ilst/----";
+    ILST, b"ilst",      ContainerType::Container,      false,  "Item List - Apple metadata container","/mnoov/udata/meta/ilst";
+    AART, b"aart",      ContainerType::Container,      false,  "Artist",                              "/moov/udata/meta/ilst/disk";
+    COVR, b"covr",      ContainerType::Container,      false,  "Cover Art",                           "/moov/udata/meta/ilst/covr";
+    CPIL, b"cpil",      ContainerType::Container,      false,  "Compilation boolean",                 "/moov/udata/meta/ilst/cpil";    
+    DATA, b"data",      ContainerType::NotContainer,   true,   "Data box for ILST data",               "/moov/udata/meta/ilist/<ilst-md>/data";
+    DISK, b"disk",      ContainerType::Container,      false,  "Disk number and total disks",          "/moov/udata/meta/ilst/disk";
+    GNRE, b"gnre",      ContainerType::Container,      false,  "Genre",                                "/moov/udata/meta/ilst/gnre";
+    PGAP, b"pgap",      ContainerType::Container,      false,  "Program Gap boolean",                  "/moov/udata/meta/ilst/gnre";
+    TMPO, b"tmpo",      ContainerType::Container,      false,  "Tempo guide",                          "/moov/udata/meta/ilst/tmpo";
+    TRKN, b"trkn",      ContainerType::Container,      false,  "Track number and total tracks",        "/moov/udata/meta/ilist/trkn";
+    XALB, b"\xa9alb",   ContainerType::Container,      false,  "Album title",                          "/moov/udata/meta/ilst/©alb";
+    XART, b"\xa9art",   ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©art";
+    XARTC,b"\xa9ART",   ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©ART";
+    XCMT, b"\xa9cmt",   ContainerType::Container,      false,  "Comment",                              "/moov/udata/meta/ilist/©cmt";
+    XDAY, b"\xa9day",   ContainerType::Container,      false,  "Year",                                 "/moov/udata/meta/ilist/©day";
+    XGEN, b"\xa9gen",   ContainerType::Container,      false,  "Genre",                                "/moov/udata/meta/ilist/©gen";
+    XGRP, b"\xa9grp",   ContainerType::Container,      false,  "Group",                                "/moov/udata/meta/ilist/©grp";
+    XLRY, b"\xa9lyr",   ContainerType::Container,      false,  "Lyric",                                "/moov/udata/meta/ilist/©lyr";
+    XNAM, b"\xa9nam",   ContainerType::Container,      false,  "Title/Name",                           "/moov/udata/meta/ilst/©nam";
+    XTOO, b"\xa9too",   ContainerType::Container,      false,  "Encoder",                              "/moov/udata/meta/ilst/©too";
+    XWRT, b"\xa9wrt",   ContainerType::Container,      false,  "Writer/Author",                        "/moov/udata/meta/ilst/©wrt";
+    ____, b"----",      ContainerType::Container,      false,  "Apple Special Item",                   "/moov/udata/meta/ilst/----";
 }
