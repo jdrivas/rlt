@@ -28,7 +28,7 @@ impl<'a> fmt::Debug for BoxCounter {
 /// A stack of BoxCounters used to capture containers and when they've been filled.
 /// This particularly useful for understanding the context in which a box has been
 /// found (ie the path to the box) as well as for doing things like
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct LevelStack {
     levels: Vec<BoxCounter>,
 }
@@ -36,7 +36,9 @@ pub struct LevelStack {
 impl LevelStack {
     // pub fn new(size: usize) -> LevelStack {
     pub fn new() -> LevelStack {
-        LevelStack { levels: vec![] }
+        LevelStack {
+            ..Default::default()
+        }
     }
 
     /// Add a box and calcuate it's impact on the stack
@@ -46,8 +48,16 @@ impl LevelStack {
     /// 2. If this is a container, add this box to the stack to account
     /// for comming enclosed boxes.
     pub fn add_box(&mut self, b: boxes::MP4Box) {
-        if self.levels.len() > 0 {
-            self.levels.last_mut().unwrap().count += b.size as usize;
+        if !self.levels.is_empty() {
+            let mut last = self.levels.last_mut().unwrap();
+            last.count += b.size as usize;
+            // self.levels.last_mut().unwrap().count += b.size as usize;
+            // Don't forget to count the goofy special boxes that are both
+            // containers boxes that have things in them that count against
+            // their sizes.
+            if let ContainerType::Special(v) = last.box_type.spec().container {
+                last.count += v;
+            };
         }
 
         if b.box_type.spec().container != ContainerType::NotContainer {
@@ -136,8 +146,15 @@ impl LevelStack {
     /// Has the container on the top of the stack been completed?
     /// Practically this means if the size is equal to the count.
     pub fn complete(&self) -> bool {
-        if self.levels.len() > 0 {
-            self.levels.last().unwrap().size == self.levels.last().unwrap().count
+        if !self.is_empty() {
+            let last = self.levels.last().unwrap();
+            // println!(
+            //     "Checking complete: Size: {}, Count: {}, Diff: {}",
+            //     last.size,
+            //     last.count,
+            //     last.size as i32 - last.count as i32
+            // );
+            last.size == last.count
         } else {
             false
         }
@@ -163,6 +180,10 @@ impl LevelStack {
         self.levels.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// What's the path to the current top box.
     pub fn path(&self) -> Vec<String> {
         let mut v = Vec::new();
@@ -178,7 +199,7 @@ impl LevelStack {
     /// so paths look like: /moov/trak/mdia/minf/stbl
     pub fn path_string(&self) -> String {
         let mut s = "/".to_string();
-        if self.len() > 0 {
+        if !self.is_empty() {
             s += &self.path().join("/")
         }
         s
@@ -190,6 +211,7 @@ impl LevelStack {
 /// Default to tabs, but could be used to add any single char.
 ///  If we find the need we could easily modify it to take strings
 /// instead of chars as the indent token.
+#[derive(Default)]
 pub struct Tabs {
     t: String,
     c: char,
@@ -202,10 +224,10 @@ impl Tabs {
             c: '\t',
         }
     }
-    pub fn new_with(c: char) -> Tabs {
+    pub fn new_with(ch: char) -> Tabs {
         Tabs {
             t: String::new(),
-            c: c,
+            c: ch,
         }
     }
 
@@ -229,10 +251,41 @@ impl fmt::Display for Tabs {
 // tabs.println()?
 
 /// Get a string from a [u8;4];
-pub fn kind_to_string(k: &[u8; 4]) -> String {
-    String::from_utf8_lossy(k).into_owned()
+pub fn kind_to_string(k: [u8; 4]) -> String {
+    String::from_utf8_lossy(&k).into_owned()
 }
 
 pub fn u8_to_string(k: &[u8]) -> String {
     String::from_utf8_lossy(k).into_owned()
+}
+
+pub fn dump_buffer(buf: &[u8]) {
+    let mut ascii: String = "".to_string();
+    for (i, b) in buf.iter().enumerate() {
+        // End of line.
+        if i % 16 == 0 {
+            println!("  {}", ascii);
+            ascii = "".to_string();
+        }
+        if i % 4 == 0 {
+            print!(" ");
+            ascii += " ";
+        }
+
+        if b.is_ascii_alphanumeric() || b.is_ascii_punctuation() {
+            ascii.push(*b as char);
+        } else {
+            ascii.push('.');
+        }
+        print!("{:02x} ", b);
+    }
+    let left = 16 - buf.len() % 16;
+    if left > 0 {
+        let mut spaces: String = "".to_string();
+        for _ in 0..left {
+            spaces += "   ";
+        }
+        println!("{}   {}", spaces, ascii);
+    }
+    // println!("Left: {}", left);
 }

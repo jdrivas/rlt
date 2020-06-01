@@ -1,6 +1,8 @@
 use crate::mpeg4::boxes::box_types::{BoxType, ContainerType};
 use crate::mpeg4::boxes::MP4Box;
+use crate::mpeg4::util;
 use bytes::buf::Buf;
+use util::dump_buffer;
 
 // TODO(jdr): This should probably be made into something that can read, video and system
 // files, based on the 4 char format dsecription.
@@ -63,11 +65,13 @@ pub fn get_short_audio_stsd<'a>(
 /// of data references.
 pub fn get_audio_stsd<'a>(
     bx: &'a mut MP4Box,
-    format: &'a mut [u8; 4],
+    _format: &'a mut [u8; 4],
     channels: &'a mut u16,
     sample_size: &'a mut u16,
     sample_rate: &'a mut u32,
 ) {
+    // dump_buffer(bx.buf);
+
     let _entry_count = bx.buf.get_u32(); // should equal 1 for the audio files we're looking at.
 
     //
@@ -76,13 +80,10 @@ pub fn get_audio_stsd<'a>(
     // Sample Entry Box Size
     let _len_desc = bx.buf.get_u32();
 
-    //  Sample Entry Box type
+    // Sample Entry Box type
     // We expect b"mp4a".
-    // Rumour has it that we could get: b"emca", b"samr", b"sawb";
-    let se_type = bx.buf.get_u32();
-    // se_kind.copy_from_slice(&bx.buf[0..4]);
-    // format.copy_from_slice(&bx.buf[0..4]);
-    // bx.buf.advance(4);
+    //      Rumour has it that we could get: b"emca", b"samr", b"sawb";
+    let _se_type = bx.buf.get_u32();
 
     // Next there are 6 bytes rserved as 0.
     bx.buf.advance(6);
@@ -91,12 +92,12 @@ pub fn get_audio_stsd<'a>(
     let _dref_index = bx.buf.get_u16(); // from dref box.
 
     // Old style QT .mov format
-    let qt_enc_version = bx.buf.get_u16(); // quicktime audio encoding version
-                                           // if *qt_enc_ver != None {
-                                           //     *qt_enc_ver = Some(bx.buf.get_u16());
-                                           // } else {
-                                           //     bx.buf.advance(2);
-                                           // }
+    let _qt_enc_version = bx.buf.get_u16(); // quicktime audio encoding version
+                                            // if *qt_enc_ver != None {
+                                            //     *qt_enc_ver = Some(bx.buf.get_u16());
+                                            // } else {
+                                            //     bx.buf.advance(2);
+                                            // }
     let _qt_audio_rev = bx.buf.get_u16(); // quicktime audio encoding revision.
     let _qt_vendor = bx.buf.get_u32(); // quicktime audio encoding vendor, 4 byte ascii string: b"XXXX".
 
@@ -111,21 +112,24 @@ pub fn get_audio_stsd<'a>(
     // this is a 16.16 fixed point number
     *sample_rate = bx.buf.get_u32();
 
-    match qt_enc_version {
-        0 => (),
+    // This is the ESDS box?
+    dump_buffer(bx.buf);
 
-        // Quicktime sound sample description version 1.
-        1 => bx.buf.advance(16), // move past unknown QT fields.
+    // match qt_enc_version {
+    //     0 => (),
 
-        // Quicktime sound sample description version 1.
-        2 => {
-            bx.buf.advance(4); // move past unknown QT fields
-            let sr = f64::from_bits(bx.buf.get_u64()); // TODO(jdr): Rationalize what we return.
-            let cc = bx.buf.get_u64(); // TODO(jdr): Decide how to convert.
-            bx.buf.advance(20);
-        }
-        _ => (), // TODO(jdr): Need to error out.
-    }
+    //     // Quicktime sound sample description version 1.
+    //     1 => bx.buf.advance(16), // move past unknown QT fields.
+
+    //     // Quicktime sound sample description version 1.
+    //     2 => {
+    //         bx.buf.advance(4); // move past unknown QT fields
+    //         let sr = f64::from_bits(bx.buf.get_u64()); // TODO(jdr): Rationalize what we return.
+    //         let cc = bx.buf.get_u64(); // TODO(jdr): Decide how to convert.
+    //         bx.buf.advance(20);
+    //     }
+    //     _ => (), // TODO(jdr): Need to error out.
+    // }
     /*
     // check to see if the BOXEs above
     // are acceptable?

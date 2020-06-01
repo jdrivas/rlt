@@ -115,11 +115,6 @@ pub fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
         None
     };
 
-    if let ContainerType::Special(skip) = box_spec.container {
-        buf.advance(skip);
-        read += skip as usize;
-    }
-
     // Buffer not read yet.
     // println!(
     //     "Creating rest. Buf.len() {}, Box size: {}, Bytes Read: {}",
@@ -130,11 +125,14 @@ pub fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
     let rest = &buf[0..(s as usize - read)];
     // println!("\tRest len: {}", rest.len());
 
+    if let ContainerType::Special(skip) = box_spec.container {
+        buf.advance(skip);
+        read += skip as usize;
+    }
+
     // Move this buffer pointer along to the end of the box.
     // This needs to happen after we've created rest.
     if box_spec.container == ContainerType::NotContainer {
-        // if let Some(spec) = box_spec {
-        //     if spec.container == ContainerType::NotContainer {
         buf.advance(s as usize - read);
     }
     // } else {

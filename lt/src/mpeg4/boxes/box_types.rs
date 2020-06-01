@@ -36,10 +36,7 @@ impl fmt::Debug for BoxSpec {
             ContainerType::Special(s) => format!(" Special Container [{}]", s),
             ContainerType::NotContainer => "".to_string(),
         };
-        let fb = match self.full {
-            true => "Full Box",
-            false => "Simple Box",
-        };
+        let fb = if self.full { "Full Box" } else { "Simple Box" };
         write!(
             f,
             "{:?}[{:0x?}] {}{}",
@@ -54,7 +51,7 @@ impl fmt::Debug for BoxSpec {
 macro_rules! def_boxes {
     ($($box_name:ident, $id:expr, $cc:literal, $container:expr, $full:expr, $comment_name:literal, $comment_path:literal;) * ) => {
 
-        #[derive(Debug)]
+        #[derive(Debug,PartialEq, Eq)]
         pub enum BoxType {
             $($box_name(BoxSpec)), *,
             Unknown(BoxSpec),
@@ -96,30 +93,29 @@ macro_rules! def_boxes {
     };
 }
 
-
 // This is totally over eneginineered and there has to be a better way to do this.
 // On the plus side, I leanred how to write a macro_rules macro and a proc-macro.
 // Though, I'm sure that this could be very much better done. In particular the proc-macro
-// probably wants much re-writing and it's like I can get rid of the macro_rules macro
+// probably wants much re-writing and it's likely I can get rid of the macro_rules macro
 // above entirely.
 // Other things to consider;
 // 1. The From<u32> lookup function may want to be rewritten to use a hash-table depending
 // on wether or not some clever compiler work turned the match into a table lookup. Seems
 // unlikely.
-// 2. Can probably get rid fo the b"abcd" and turn it directly into "abcd" , since that's what 
+// 2. Can probably get rid fo the b"abcd" and turn it directly into "abcd" , since that's what
 // the macro does anyway. On the other hand being able to direclty use the four character codes could
 // be handy?
 
 // The macros are not really that complicated in spirit.
 // define_boxes, merely parses the table and adds a column between Ident and Code
-// with an integer value literal defined by the  converting the 4 character code int literal by treating
+// with an integer value literal by converting the 4 character code into an int by treating
 // the cose as a u32 in big-endian format.
 // I know, that's a lot of machineary to add a column you coud have typed.
 
 // The table below is used to define:
 //  - a BoxType enumeration one for each Ident in the table.
-//  - a constant, named by the identifer, of the BoxType with the BoxSpec defined for the box type using values from the table.
-//  - a From<u32> for BoxType implementation specifically for doing a lookup and returing the constant enum
+//  - a Constant, named by the identifer, of BoxType with the BoxSpec defined for the box type using values from the table.
+//  - a From<u32> impl for BoxType, this is for doing a lookup and returing the constant enum
 //    based on the integer representation of the four ascii char code defined in the Mpeg4 spec.
 //  - Implementation of BoxType functions: spec() returning the BoxSpec for a BoxType and code_strin()
 //    to print the ascii string from the box id integer.
@@ -135,9 +131,9 @@ macro_rules! def_boxes {
 //    - A description which is currently used in the doc comments for the defined constants. (5th column).
 //    - A path indicating where the box should normally be found in a box container hierarchy (6th column).
 define_boxes! {
-//  Ident Code          Container Type                 Full    Description                             Path  
+//  Ident Code          Container Type                 Full    Description                             Path
     FTYP, b"ftyp",      ContainerType::NotContainer,   false,  "File Container",                       "/ftyp";
-    DINF, b"dinf",      ContainerType::Container,      false,  "Data Container",                       "//moov/trak/mdia/minf/dinf";
+    DINF, b"dinf",      ContainerType::Container,      false,  "Data Container",                       "/moov/trak/mdia/minf/dinf";
     DREF, b"dref",      ContainerType::NotContainer,   true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
     HDLR, b"hdlr",      ContainerType::NotContainer,   true,   "Handler - general data handler",       "/moov/trak/mdia/hdlr, /movvo,udata/meta/hdlr";
     META, b"meta",      ContainerType::Container,      true,   "Metadata Container",                   "/moov/meta, /moov/trak/meta, /moov/udata/meta";
@@ -150,23 +146,22 @@ define_boxes! {
     TKHD, b"tkhd",      ContainerType::NotContainer,   true,   "Track Header",                         "/movv/trak/tkhd";
     TRAK, b"trak",      ContainerType::Container,      false,  "Track Container",                      "/moov/trak";
     UDTA, b"udta",      ContainerType::Container,      false,  "User Data Container",                  "/moov/udta";
-    
+
     // Sample Table Boxes
     STBL, b"stbl",      ContainerType::Container,      false,  "Sample Table Box Container",           "/moov/trak/mdia/minf/stbl";
-    ESDS, b"esds",      ContainerType::NotContainer,   true,   "ESDS Audio SampleEntry box",           "/moov/track/mdia/minf/stbl/stsd/mp4a/esds";
+    ESDS, b"esds",      ContainerType::NotContainer,   true,   "Elementary Stream Descriptor",           "/moov/track/mdia/minf/stbl/stsd/mp4a/esds";
     MP4A, b"mp4a",      ContainerType::Special(28),    false,  "MPEG 4 Audio SampleEntry Box",         "/moov/track/mdia/minf/stbl/stsd/mp4a";
     STCO, b"stco",      ContainerType::NotContainer,   true,   "Chunk Offsets",                        "/moov/track/mdia/minf/stbl/stco";
     STSC, b"stsc",      ContainerType::NotContainer,   true,   "Sample to Chunk",                      "/moov/track/mdia/minf/stbl/stsc";
     STSD, b"stsd",      ContainerType::Special(4),     true,   "Sample Description",                    "/moov/track/mdia/minf/stbl/stsd";
     STTS, b"stts",      ContainerType::NotContainer,   true,   "Time to sample",                       "/movv/track/mdia/minf/stbl/stts";
     STSZ, b"stsz",      ContainerType::NotContainer,   true,   "Sample Sizes",                         "/moov/track/mdia/minf/stbl/stsz";
-    
-    
+
     // ILST is Apples meta data block.
     ILST, b"ilst",      ContainerType::Container,      false,  "Item List - Apple metadata container","/mnoov/udata/meta/ilst";
     AART, b"aart",      ContainerType::Container,      false,  "Artist",                              "/moov/udata/meta/ilst/disk";
     COVR, b"covr",      ContainerType::Container,      false,  "Cover Art",                           "/moov/udata/meta/ilst/covr";
-    CPIL, b"cpil",      ContainerType::Container,      false,  "Compilation boolean",                 "/moov/udata/meta/ilst/cpil";    
+    CPIL, b"cpil",      ContainerType::Container,      false,  "Compilation boolean",                 "/moov/udata/meta/ilst/cpil";
     DATA, b"data",      ContainerType::NotContainer,   true,   "Data box for ILST data",               "/moov/udata/meta/ilist/<ilst-md>/data";
     DISK, b"disk",      ContainerType::Container,      false,  "Disk number and total disks",          "/moov/udata/meta/ilst/disk";
     GNRE, b"gnre",      ContainerType::Container,      false,  "Genre",                                "/moov/udata/meta/ilst/gnre";
