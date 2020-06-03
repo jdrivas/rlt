@@ -259,11 +259,13 @@ pub fn u8_to_string(k: &[u8]) -> String {
     String::from_utf8_lossy(k).into_owned()
 }
 
+#[allow(clippy::explicit_counter_loop)]
 pub fn dump_buffer(buf: &[u8]) {
     let mut ascii: String = "".to_string();
+    let mut line = 0;
     for (i, b) in buf.iter().enumerate() {
         // End of line.
-        if i % 16 == 0 {
+        if i % 16 == 0 && line != 0 {
             println!("  {}", ascii);
             ascii = "".to_string();
         }
@@ -278,6 +280,7 @@ pub fn dump_buffer(buf: &[u8]) {
             ascii.push('.');
         }
         print!("{:02x} ", b);
+        line += 1;
     }
     let left = 16 - buf.len() % 16;
     if left > 0 {
