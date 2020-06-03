@@ -1,7 +1,7 @@
 extern crate proc_macro;
 extern crate quote;
 extern crate syn;
-use proc_macro2::{Group, Ident, Span, TokenStream, TokenTree};
+use proc_macro2::{Group, Span, TokenStream, TokenTree};
 use quote::quote;
 
 #[derive(Default, Debug, Clone)]
@@ -44,14 +44,13 @@ pub fn define_boxes(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let full = e.full.expect("failed on full boolean");
         let descrip = e.descrip.expect("failed on description");
         let path = e.path.expect("failed on path");
-        let q;
         // println!("Quoting ident: {}", ident);
-        if e.special_value.is_none() {
-            q = quote! { #ident, #id, #cc, #cont::#cont_kind, #full, #descrip, #path; };
+        let q = if e.special_value.is_none() {
+            quote! { #ident, #id, #cc, #cont::#cont_kind, #full, #descrip, #path; }
         } else {
             let val = e.special_value.unwrap();
-            q = quote! { #ident, #id, #cc, #cont::#cont_kind(#val), #full, #descrip, #path; };
-        }
+            quote! { #ident, #id, #cc, #cont::#cont_kind(#val), #full, #descrip, #path; }
+        };
         v.push(q);
     }
 
