@@ -18,7 +18,7 @@ impl<'a> fmt::Debug for BoxCounter {
         write!(
             f,
             "{:?} - Size: {}, Count: {}",
-            self.box_type.code_string(),
+            self.box_type.four_cc(),
             self.size,
             self.count
         )
@@ -188,7 +188,7 @@ impl LevelStack {
     pub fn path(&self) -> Vec<String> {
         let mut v = Vec::new();
         for l in &self.levels {
-            v.push(l.box_type.code_string());
+            v.push(l.box_type.four_cc());
         }
         v
     }

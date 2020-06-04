@@ -70,12 +70,14 @@ pub fn get_audio_stsd<'a>(
     sample_size: &'a mut u16,
     sample_rate: &'a mut u32,
 ) {
-    // dump_buffer(bx.buf);
-
+    println!("STSD Box after header read.");
+    dump_buffer(bx.buf);
     let _entry_count = bx.buf.get_u32(); // should equal 1 for the audio files we're looking at.
 
     //
     // Sample Entry Box
+    println!("Sample Entry Box:");
+    dump_buffer(bx.buf);
 
     // Sample Entry Box Size
     let _len_desc = bx.buf.get_u32();
@@ -113,6 +115,7 @@ pub fn get_audio_stsd<'a>(
     *sample_rate = bx.buf.get_u32();
 
     // This is the ESDS box?
+    println!("ESDS box:");
     dump_buffer(bx.buf);
 
     // match qt_enc_version {

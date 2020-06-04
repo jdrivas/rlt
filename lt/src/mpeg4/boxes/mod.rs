@@ -51,7 +51,7 @@ impl fmt::Debug for MP4Box<'_> {
         write!(
             f,
             "{:?}  [{:10?}] {:?} Buffer[{}]",
-            self.box_type.code_string(),
+            self.box_type.four_cc(),
             self.size,
             self.box_type,
             self.buf.len(),

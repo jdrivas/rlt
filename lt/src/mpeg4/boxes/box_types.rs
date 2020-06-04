@@ -1,7 +1,4 @@
-use crate::mpeg4::boxes;
-use crate::mpeg4::boxes::{ilst, mdia, stbl};
 use lt_macro::define_boxes;
-use std::convert::TryFrom;
 use std::fmt;
 
 // New
@@ -23,9 +20,33 @@ pub struct BoxSpec {
     pub full: bool,
 }
 
-impl BoxSpec {
-    pub fn code_string(&self) -> String {
-        String::from_utf8_lossy(&self.bt_id.to_be_bytes()).to_string()
+struct FourCC(u32);
+
+impl std::fmt::Display for FourCC {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match std::str::from_utf8(&self.0.to_be_bytes()) {
+            Ok(s) => write!(f, "{}", s),
+            Err(_) => {
+                let b1: char = (((self.0 >> 24) & 0x00_00_FF) as u8) as char;
+                if b1 == '©' {
+                    let b2: char = (((self.0 >> 16) & 0x00_00_FF) as u8) as char;
+                    let b3: char = (((self.0 >> 8) & 0x00_00_FF) as u8) as char;
+                    let b4: char = ((self.0 & 0x00_00_FF) as u8) as char;
+                    write!(f, "{}{}{}{}", b1, b2, b3, b4)
+                } else {
+                    write!(f, "{:?}", self.0)
+                }
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for FourCC {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match std::str::from_utf8(&self.0.to_be_bytes()) {
+            Ok(s) => write!(f, "{}", s),
+            Err(_) => write!(f, "{:x?}", self.0),
+        }
     }
 }
 
@@ -39,8 +60,8 @@ impl fmt::Debug for BoxSpec {
         let fb = if self.full { "Full Box" } else { "Simple Box" };
         write!(
             f,
-            "{:?}[{:0x?}] {}{}",
-            self.code_string(),
+            "{}[{:0x?}] {}{}",
+            FourCC(self.bt_id),
             self.bt_id,
             fb,
             cntr
@@ -72,8 +93,9 @@ macro_rules! def_boxes {
                 }
             }
 
-            pub fn code_string(&self) -> String {
-                self.spec().code_string()
+            pub fn four_cc(&self) -> String {
+                FourCC(self.spec().bt_id).to_string()
+                // self.spec().code_string()
             }
         }
 
@@ -192,7 +214,7 @@ define_boxes! {
     TVES, b"tves",      ContainerType::Container,      false,  "TV Episode Number",                    "/moov/udata/meta/ilist/tves";
     TVNN, b"tvnn",      ContainerType::Container,      false,  "TV Network Name",                      "/moov/udata/meta/ilist/tvnn";
     TVSH, b"tvsh",      ContainerType::Container,      false,  "TV Show Name",                         "/moov/udata/meta/ilist/tvsh";
-    TVSN, b"tvsn",      ContainerType::Container,      false,  "Tv Show Number",                       "/moov/udata/meta/ilist/tvsh";
+    TVSN, b"tvsn",      ContainerType::Container,      false,  "TV Show Number",                       "/moov/udata/meta/ilist/tvsn";
     XALB, b"\xa9alb",   ContainerType::Container,      false,  "Album title",                          "/moov/udata/meta/ilst/©alb";
     XART, b"\xa9art",   ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©art";
     XARTC,b"\xa9ART",   ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©ART";

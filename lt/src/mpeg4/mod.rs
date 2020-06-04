@@ -7,7 +7,7 @@ use crate::file;
 use crate::file::FileFormat;
 use crate::track;
 use boxes::box_types;
-use boxes::box_types::{BoxType, ContainerType};
+use boxes::box_types::ContainerType;
 use boxes::ilst;
 use boxes::mdia;
 use boxes::stbl;
@@ -50,7 +50,7 @@ pub fn identify(mut b: &[u8]) -> Option<FileFormat> {
             .push(String::from_utf8_lossy(s).to_string());
     }
 
-    return Some(file::FileFormat::MPEG4(mp4));
+    Some(file::FileFormat::MPEG4(mp4))
 }
 
 const FORMAT_NAME: &str = "MPEG-4";
@@ -101,9 +101,9 @@ pub fn display_structure(buf: &[u8]) {
     let mut tabs = String::new();
     for b in boxes {
         println!(
-            "{}{:?} [{:?}]    {:?} - Path: {:?}",
+            "{}{} [{:?}]    {:?} - Path: {:?}",
             tabs,
-            b.box_type.code_string(),
+            b.box_type.four_cc(),
             b.size,
             b.box_type,
             l.path_string(),
@@ -125,7 +125,7 @@ pub fn display_structure(buf: &[u8]) {
         while l.complete() {
             tabs.pop();
             if l.len() > 1 {
-                println!("{}<{}>", tabs, l.top().unwrap().box_type.code_string());
+                println!("{}<{}>", tabs, l.top().unwrap().box_type.four_cc());
             }
             l.pop();
             if l.len() == 0 {
@@ -188,7 +188,7 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                     let val = String::from_utf8_lossy(v).to_string();
 
                     // Insert all the string pairs into the general metadata.
-                    md.text.insert(bt.code_string(), val.clone());
+                    md.text.insert(bt.four_cc(), val.clone());
 
                     // Then capture the specifics based on
                     // the box previous ilst box type.
@@ -214,7 +214,7 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                 },
                 ilst::DataBoxContent::Byte(v) => {
                     // TODO(jdr): Consider adding a text translation.
-                    md.byte.insert(bt.code_string(), v); // TOOO(jdr): Do we want to change the Track Metadata to tak str().
+                    md.byte.insert(bt.four_cc(), v); // TOOO(jdr): Do we want to change the Track Metadata to tak str().
                 }
             }
         }
