@@ -20,19 +20,32 @@ pub struct BoxSpec {
     pub full: bool,
 }
 
-struct FourCC(u32);
+/// Thanks to Mozilla and mp4parse for the thinking that went in to this.
+/// All mistakes and ugliness mine.
+/// But the Table of boxes was stolen from them (with my hackery to
+/// not have to write out the integers and just specify as four chcaracter codes).
+/// As was FourCC below, stolen from U32BE and their FourCC.
+
+/// Display a u32 as 4 byte character codes, taking into account
+/// the displayable copyright we expect and expclicitly converting
+/// to hex for anything else that's not ASCII as rust stringification defines it.
+pub struct FourCC(pub u32);
 
 impl std::fmt::Display for FourCC {
+    // It's unclear to me if this actually usess storage for the bytes or not.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match std::str::from_utf8(&self.0.to_be_bytes()) {
             Ok(s) => write!(f, "{}", s),
             Err(_) => {
-                let b1: char = (((self.0 >> 24) & 0x00_00_FF) as u8) as char;
-                if b1 == '©' {
-                    let b2: char = (((self.0 >> 16) & 0x00_00_FF) as u8) as char;
-                    let b3: char = (((self.0 >> 8) & 0x00_00_FF) as u8) as char;
-                    let b4: char = ((self.0 & 0x00_00_FF) as u8) as char;
-                    write!(f, "{}{}{}{}", b1, b2, b3, b4)
+                // The let presumably guarantees storage is used.
+                let chars = self.0.to_be_bytes();
+                // This also, presumably turns each value into a 32 bits.
+                if chars[0] as char == '©' {
+                    write!(
+                        f,
+                        "{}{}{}{}",
+                        chars[0] as char, chars[1] as char, chars[2] as char, chars[3] as char
+                    )
                 } else {
                     write!(f, "{:?}", self.0)
                 }
@@ -109,6 +122,20 @@ macro_rules! def_boxes {
                         full: false,
                     }),
                 }
+            }
+        }
+
+        impl From<&[u8]> for BoxType {
+            fn from(v: &[u8]) -> BoxType {
+                let mut b: [u8;4] = [0;4];
+                b.copy_from_slice(v);
+                From::from(u32::from_be_bytes(b))
+            }
+        }
+
+        impl From<[u8;4]> for BoxType {
+            fn from(v: [u8;4]) -> BoxType {
+                From::from(u32::from_be_bytes(v))
             }
         }
 

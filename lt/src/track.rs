@@ -35,8 +35,8 @@ impl PCMFormat {
   pub fn duration(&self) -> Duration {
     // Compute duration
     let mut ns = self.total_samples as f64 / self.sample_rate as f64;
-    ns = ns * BILLION as f64;
-    return Duration::from_nanos(ns as u64);
+    ns *= BILLION as f64;
+    Duration::from_nanos(ns as u64)
   }
 }
 
@@ -57,8 +57,8 @@ impl MPEG4AudioFormat {
 
   pub fn duration(&self) -> Duration {
     let mut ns = self.total_samples as f64 / self.sample_rate();
-    ns = ns * BILLION as f64;
-    return Duration::from_nanos(ns as u64);
+    ns *= BILLION as f64;
+    Duration::from_nanos(ns as u64)
   }
 }
 
@@ -216,10 +216,8 @@ pub fn files_from(
         paths.push(f.path());
       }
     }
-  } else {
-    if p.is_file() {
-      paths.push(p);
-    }
+  } else if p.is_file() {
+    paths.push(p);
   }
 
   // Filter them into regular files and tracks getting data for the tracks.
@@ -277,5 +275,5 @@ pub fn get_track(p: &path::PathBuf) -> Result<Option<Track>, Box<dyn Error>> {
       FileFormat::MP3(mut d) => return Ok(d.get_track(&file)?),
     }
   }
-  return Ok(None);
+  Ok(None)
 }

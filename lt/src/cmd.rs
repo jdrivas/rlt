@@ -38,12 +38,11 @@ pub fn run(c: Config) -> Result<(), Box<dyn Error>> {
     Err(e) => match e.kind {
       // Bad command, try to run a List
       clap::ErrorKind::MissingArgumentOrSubcommand | clap::ErrorKind::UnknownArgument => {
-        let p;
-        if env::args().len() > 1 {
-          p = path::PathBuf::from(&env::args().nth(1).unwrap());
+        let p = if env::args().len() > 1 {
+          path::PathBuf::from(&env::args().nth(1).unwrap())
         } else {
-          p = env::current_dir()?;
-        }
+          env::current_dir()?
+        };
         if p.exists() {
           parse_app(AppCmds {
             history_path: None,
@@ -107,6 +106,10 @@ enum InteractiveCommands {
   #[structopt(name = "quit")]
   Quit,
 
+  /// Find Files
+  #[structopt(name = "find")]
+  Find(FindPath),
+
   /// List files
   #[structopt(name = "list", alias = "ls")]
   List(Path),
@@ -123,6 +126,12 @@ enum InteractiveCommands {
 #[derive(StructOpt, Debug)]
 struct Path {
   path: Vec<String>,
+}
+
+#[derive(StructOpt, Debug)]
+struct FindPath {
+  find_path: String,
+  file_path: Vec<String>,
 }
 
 // Parse and execute an AppCmds. This specifically sets up
@@ -165,6 +174,10 @@ fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult, Box<dyn Er
     }
     InteractiveCommands::Describe(p) => {
       display::describe_file(p.path.join(" "))?;
+      Ok(ParseResult::Complete)
+    }
+    InteractiveCommands::Find(p) => {
+      display::display_find_path(p.file_path.join(" "), p.find_path)?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Quit => Ok(ParseResult::Exit),
@@ -237,11 +250,11 @@ fn readloop(history_path: Option<String>) -> Result<(), Box<dyn Error>> {
     eprintln!("Couldn't set prompt: {}", e)
   }
 
-  history_path.as_ref().map(|path| {
-    if let Err(e) = rl.load_history(&path) {
+  if let Some(path) = history_path.as_ref() {
+    if let Err(e) = rl.load_history(path) {
       eprintln!("Failed to load history file {:?}: {}", path, e);
     }
-  });
+  }
 
   loop {
     match rl.read_line_step(Some(Duration::from_millis(1000))) {
@@ -252,11 +265,11 @@ fn readloop(history_path: Option<String>) -> Result<(), Box<dyn Error>> {
           Ok(opt) => match parse_interactive(opt.subcmd) {
             Ok(ParseResult::Complete) => continue,
             Ok(ParseResult::Exit) => {
-              history_path.as_ref().map(|path| {
-                if let Err(e) = rl.save_history(&path) {
+              if let Some(path) = history_path.as_ref() {
+                if let Err(e) = rl.save_history(path) {
                   eprintln!("Failed to save history file: {:?} - {}", path, e);
                 }
-              });
+              }
               break;
             }
             Err(e) => eprintln!("RL-PI: {}", e),

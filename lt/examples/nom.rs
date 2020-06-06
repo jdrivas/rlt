@@ -1,6 +1,6 @@
 extern crate nom;
 // use lt::file;
-use nom::bytes::complete::{tag, take_until};
+use nom::bytes::complete::tag;
 use std::fs::File;
 use std::io::Read;
 

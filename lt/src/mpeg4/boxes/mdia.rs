@@ -1,4 +1,3 @@
-use crate::mpeg4::boxes::box_types::{BoxType, ContainerType};
 use crate::mpeg4::boxes::MP4Box;
 use bytes::buf::Buf;
 

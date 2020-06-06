@@ -1,4 +1,3 @@
-use crate::mpeg4::boxes::box_types::{BoxType, ContainerType};
 use crate::mpeg4::boxes::MP4Box;
 use crate::mpeg4::util;
 use bytes::buf::Buf;
@@ -30,7 +29,7 @@ pub fn get_short_audio_stsd<'a>(
 
 /// Read Sample Description Box [stsd]
 ///
-/// ```?:
+/// ```spec
 /// From section R5 8.5.2 Sample Description Box:
 ///
 /// aligned(8) class SampleDescriptionBox (unsigned int[32] handler_type)

@@ -1,5 +1,5 @@
 use super::boxes;
-use box_types::{BoxSpec, BoxType, ContainerType};
+use box_types::{BoxType, ContainerType};
 use boxes::box_types;
 use std::fmt;
 
@@ -93,9 +93,9 @@ impl LevelStack {
     //     f(self, &b);
     // }
 
-    fn push_new(&mut self, size: usize, bt: BoxType) {
+    fn push_new(&mut self, sz: usize, bt: BoxType) {
         self.levels.push(BoxCounter {
-            size: size,
+            size: sz,
             count: 0,
             box_type: bt,
         });

@@ -30,15 +30,11 @@ const ID3_HEADER: &[u8] = b"ID3";
 /// http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
 /// http://id3.org/Home
 pub fn identify(b: &[u8]) -> Option<file::FileFormat> {
-    if b.len() >= 3 {
-        if &b[0..3] == ID3_HEADER {
-            return Some(file::FileFormat::MP3(Mp3 {
-                ..Default::default()
-            }));
-        }
+    if b.len() >= 3 && &b[0..3] == ID3_HEADER {
+        Some(file::FileFormat::MP3(Mp3 {}))
+    } else {
+        None
     }
-
-    return None;
 }
 
 const FORMAT_NAME: &str = "mpeg-3";

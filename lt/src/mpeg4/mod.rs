@@ -1,4 +1,5 @@
 pub mod boxes;
+pub mod find;
 // pub mod boxes::box_types;
 pub mod util;
 use util::LevelStack;
@@ -7,11 +8,8 @@ use crate::file;
 use crate::file::FileFormat;
 use crate::track;
 use boxes::box_types;
-use boxes::box_types::ContainerType;
-use boxes::ilst;
-use boxes::mdia;
-use boxes::stbl;
-use boxes::MP4Buffer;
+use boxes::box_types::{BoxType, ContainerType};
+use boxes::{ilst, mdia, read_box_size_type, stbl, MP4Buffer};
 
 use std::error::Error;
 use std::io::{Read, Seek};
@@ -28,29 +26,28 @@ pub struct Mpeg4 {
 /// by returning a FileFormat if this module
 /// can parse the file for metadata.
 pub fn identify(mut b: &[u8]) -> Option<FileFormat> {
+    let mut buf: &mut &[u8] = &mut b;
+
+    let mut br: &[u8] = &[0];
+    let mut cb: Vec<&[u8]> = Vec::new();
     let mut mp4 = Mpeg4 {
         ..Default::default()
     };
 
-    let mut buf: &mut &[u8] = &mut b;
-    let mut bx = boxes::read_box_header(&mut buf);
-
-    let mut br: &[u8] = &[0];
-    let mut cb: Vec<&[u8]> = Vec::new();
-    boxes::get_ftyp_box_values(
-        &mut bx.buf,
-        &mut br,
-        &mut mp4.version,
-        &mut mp4.flags,
-        &mut cb,
-    );
-    mp4.brand = String::from_utf8_lossy(br).to_string();
-    for s in cb {
-        mp4.compatible_brands
-            .push(String::from_utf8_lossy(s).to_string());
+    // Read the box type.
+    let (_, _, bt) = read_box_size_type(buf);
+    let bt: BoxType = From::from(bt);
+    if bt == box_types::FTYP {
+        boxes::get_ftyp_box_values(&mut buf, &mut br, &mut mp4.version, &mut mp4.flags, &mut cb);
+        mp4.brand = String::from_utf8_lossy(br).to_string();
+        for s in cb {
+            mp4.compatible_brands
+                .push(String::from_utf8_lossy(s).to_string());
+        }
+        Some(file::FileFormat::MPEG4(mp4))
+    } else {
+        None
     }
-
-    Some(file::FileFormat::MPEG4(mp4))
 }
 
 const FORMAT_NAME: &str = "MPEG-4";
@@ -59,6 +56,7 @@ impl file::Decoder for Mpeg4 {
         FORMAT_NAME
     }
 
+    /// Fill a track assumed to be in MPEG4 format from the provider Reed + Seek.
     fn get_track(
         &mut self,
         mut r: impl Read + Seek,
@@ -128,7 +126,7 @@ pub fn display_structure(buf: &[u8]) {
                 println!("{}<{}>", tabs, l.top().unwrap().box_type.four_cc());
             }
             l.pop();
-            if l.len() == 0 {
+            if l.is_empty() {
                 break;
             }
         }

@@ -26,7 +26,7 @@ pub fn album_from_path(p: path::PathBuf) -> Result<(Album, Vec<path::PathBuf>), 
     let (tracks, files) = track::files_from(p)?;
     let album = album_from_tracks(tracks);
 
-    return Ok((album, files));
+    Ok((album, files))
 }
 
 pub fn album_from_tracks(tks: Vec<track::Track>) -> Album {
@@ -46,11 +46,11 @@ pub fn album_from_tracks(tks: Vec<track::Track>) -> Album {
     // taking the first one in the list ....
     // These might just as well be functions since they are referencing
     // internal values.
-    if album.tracks.len() > 0 {
+    if !album.tracks.is_empty() {
         album.title = album.tracks[0].album.clone();
         album.artist = album.tracks[0].artist.clone();
         album.disk_total = album.tracks[0].disk_total;
         album.track_total = Some(album.tracks.len() as u32);
     }
-    return album;
+    album
 }

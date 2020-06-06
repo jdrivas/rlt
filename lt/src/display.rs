@@ -1,6 +1,8 @@
 // extern crate chrono;
 extern crate num_format;
 use crate::album;
+use crate::file;
+use crate::mpeg4;
 use crate::track;
 use format::consts::FORMAT_CLEAN;
 use num_format::{Locale, ToFormattedString};
@@ -9,6 +11,7 @@ use prettytable::{format, Cell, Row, Table};
 use std::env;
 use std::error::Error;
 use std::io;
+use std::io::Read;
 use std::path;
 use std::time::Duration;
 
@@ -18,12 +21,11 @@ const NONE_SHORT: &str = "-";
 /// metadata of the audio file if found.
 pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
   // We've either provided a file or are using the current directory.
-  let mut p;
-  if fname == "" {
-    p = env::current_dir()?;
+  let mut p = if fname == "" {
+    env::current_dir()?
   } else {
-    p = path::PathBuf::from(fname);
-  }
+    path::PathBuf::from(fname)
+  };
 
   // Make sure we can find it ....
   let album;
@@ -42,18 +44,23 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
     album = album::album_from_tracks(tracks);
     files = f;
   } else {
-    // Else
     p = dir_or_cwd(p)?;
     let (a, f) = album::album_from_path(p)?;
     album = a;
     files = f;
   }
 
-  if album.tracks.len() > 0 {
+  if !album.tracks.is_empty() {
     // Display album information
-    println!("");
-    println!("Album: {}", album.title.unwrap_or(NONE_SHORT.to_string()));
-    println!("Artist: {}", album.artist.unwrap_or(NONE_SHORT.to_string()));
+    println!();
+    println!(
+      "Album: {}",
+      album.title.unwrap_or_else(|| { NONE_SHORT.to_string() })
+    );
+    println!(
+      "Artist: {}",
+      album.artist.unwrap_or_else(|| { NONE_SHORT.to_string() })
+    );
     if album.disk_total.unwrap_or(0) > 0 {
       println!(
         "Disks: {}",
@@ -84,8 +91,8 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
       let cd = t.disk_number;
       if ld != cd {
         ld = cd;
-        if cd.is_some() {
-          table.add_row(row![format!("\nDisk: {}", cd.unwrap())]);
+        if let Some(cd) = cd {
+          table.add_row(row![format!("\nDisk: {}", cd)]);
           table.add_row(title_row(&t.format));
         }
       }
@@ -145,7 +152,7 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
   }
 
   // let (tracks, files) = track::files_from(path)?;
-  if files.len() > 0 {
+  if !files.is_empty() {
     println!("\nFiles:");
     for f in files {
       println!("{}", path_file_name(&f));
@@ -166,7 +173,7 @@ pub fn describe_file(fname: String) -> Result<(), Box<dyn Error>> {
   }
 
   let (tracks, _) = track::files_from(p)?;
-  if tracks.len() > 0 {
+  if !tracks.is_empty() {
     // this is overkill as we sould only get one file back.
     for tk in tracks {
       // Display track details
@@ -203,11 +210,20 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
   tes.push(Te("File", path_file_name(&tk.path)));
   tes.push(Te(
     "File Format",
-    tk.file_format.unwrap_or(NONE_SHORT.to_string()),
+    tk.file_format.unwrap_or_else(|| NONE_SHORT.to_string()),
   ));
-  tes.push(Te("Artist", tk.artist.unwrap_or(NONE_SHORT.to_string())));
-  tes.push(Te("Album", tk.album.unwrap_or(NONE_SHORT.to_string())));
-  tes.push(Te("Title", tk.title.unwrap_or(NONE_SHORT.to_string())));
+  tes.push(Te(
+    "Artist",
+    tk.artist.unwrap_or_else(|| NONE_SHORT.to_string()),
+  ));
+  tes.push(Te(
+    "Album",
+    tk.album.unwrap_or_else(|| NONE_SHORT.to_string()),
+  ));
+  tes.push(Te(
+    "Title",
+    tk.title.unwrap_or_else(|| NONE_SHORT.to_string()),
+  ));
   tes.push(Te(
     "Track",
     tk.track_number
@@ -301,7 +317,7 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
           let mut i = 1;
           while i < v.len() {
             table.add_row(row!["", v[i]]);
-            i = i + 1;
+            i += 1;
           }
           table.printstd();
         }
@@ -311,7 +327,7 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
         println!("Metadata");
 
         println!("\nText");
-        if imd.text.len() > 0 {
+        if !imd.text.is_empty() {
           let mut table = Table::new();
           table.set_format(*FORMAT_CLEAN);
           table.add_row(row!["Key", "Value"]);
@@ -322,7 +338,7 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
             let mut i = 1;
             while i < v.len() {
               table.add_row(row!["", v[i]]);
-              i = i + 1;
+              i += 1;
             }
           }
           table.printstd();
@@ -331,7 +347,7 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
         }
 
         println!("\nComments");
-        if imd.comments.len() > 0 {
+        if !imd.comments.is_empty() {
           let mut table = Table::new();
           table.set_format(*FORMAT_CLEAN);
           table.add_row(row!["Key", "Lang", "Description", "Text"]);
@@ -342,7 +358,7 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
             let mut i = 1;
             while i < v.len() {
               table.add_row(row!["", v[0].0, v[0].1, v[0].2]);
-              i = i + 1;
+              i += 1;
             }
           }
           table.printstd();
@@ -353,18 +369,18 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
 
       track::FormatMetadata::MP4(mmd) => {
         println!("Metadata");
-        if mmd.text.len() > 0 || mmd.byte.len() > 0 {
+        if !mmd.text.is_empty() || !mmd.byte.is_empty() {
           let mut table = Table::new();
           table.set_format(*FORMAT_CLEAN);
           table.add_row(row!["Key", "Value"]);
-          if mmd.text.len() > 0 {
+          if !mmd.text.is_empty() {
             let mut vs: Vec<_> = mmd.text.iter().collect();
             vs.sort();
             for (k, v) in vs {
               table.add_row(row![k, v]);
             }
           }
-          if mmd.byte.len() > 0 {
+          if !mmd.byte.is_empty() {
             let mut vs: Vec<_> = mmd.byte.iter().collect();
             vs.sort();
             for (k, v) in vs {
@@ -379,6 +395,38 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
       }
     }
   }
+  Ok(())
+}
+
+pub fn display_find_path(fname: String, path: String) -> Result<(), Box<dyn Error>> {
+  let p = path::PathBuf::from(&fname);
+  if !p.as_path().is_file() {
+    return Err(Box::new(io::Error::new(
+      io::ErrorKind::Other,
+      format!("{} is not a file.", p.as_path().display()),
+    )));
+  }
+
+  let mut file = std::fs::File::open(fname).unwrap();
+  if let Some(ft) = file::identify(&mut file)? {
+    match ft {
+      file::FileFormat::MPEG4(_) => {
+        let mut vbuf = Vec::<u8>::new();
+        let _n = file.read_to_end(&mut vbuf);
+        let buf = vbuf.as_slice();
+        if let Some(bx) = mpeg4::find::find_box(&path, buf) {
+          println!("{:?}", bx);
+          mpeg4::util::dump_buffer(bx.buf);
+        } else {
+          println!("Couldn't find box in path: {}", path);
+        };
+      }
+      _ => println!("Can't perform find on {} files.", ft),
+    }
+  } else {
+    println!("Can perform find on regular files",)
+  }
+
   Ok(())
 }
 
@@ -442,7 +490,7 @@ fn dir_or_cwd(p: path::PathBuf) -> io::Result<path::PathBuf> {
   if p.is_dir() {
     return Ok(p);
   }
-  return env::current_dir();
+  env::current_dir()
 }
 
 // Deal with the gymnastics of getting the file
@@ -456,5 +504,5 @@ fn path_file_name(p: &path::PathBuf) -> String {
   if p.as_path().is_dir() {
     ps += "/";
   }
-  return ps;
+  ps
 }

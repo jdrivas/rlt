@@ -5,7 +5,7 @@ pub mod ilst;
 pub mod mdia;
 pub mod stbl;
 
-use box_types::{BoxSpec, BoxType, ContainerType};
+use box_types::{BoxType, ContainerType};
 use bytes::buf::Buf;
 use std::fmt;
 
@@ -19,6 +19,7 @@ pub struct MP4Buffer<'a, 'b> {
 /// Holds header information from the box
 /// and the buffer for the data assocaited
 /// with the box.
+#[derive(PartialEq, Eq)]
 pub struct MP4Box<'a> {
     pub size: u32,
     pub box_type: BoxType,
@@ -36,7 +37,7 @@ impl<'a> MP4Box<'a> {
 impl<'a> std::iter::Iterator for MP4Buffer<'a, '_> {
     type Item = MP4Box<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.buf.len() == 0 {
+        if self.buf.is_empty() {
             return None;
         }
         // println!("Next: Buf len: {:#0x}", self.buf.len());
@@ -59,7 +60,7 @@ impl fmt::Debug for MP4Box<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct VersionFlag {
     pub version: u8,
     pub flag: u32,
@@ -90,17 +91,10 @@ pub fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
     // t = 1 byte of box type; 4 total.
     // println!("Bufferhead {:x?}", &buf[0..8]);
     let mut read: usize = 0;
-    let s = buf.get_u32();
-    read += 4;
+    let (r, s, bt) = read_box_size_type(buf);
+    read += r;
 
-    let bt = buf.get_u32();
-    read += 4;
-
-    // println!(
-    //     "Read type: {:?}",
-    //     String::from_utf8_lossy(&bt.to_be_bytes())
-    // );
-    // println!("Read Size: {}[{:0x?}]", s, s);
+    // println!("Read box header: {} [{}/0x{:0x?}]", FourCC(bt), s, s);
     let box_type = BoxType::from(bt);
     let box_spec = box_type.spec();
 
@@ -139,6 +133,7 @@ pub fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
     //     buf.advance(s as usize - read);
     // }
 
+    #[allow(clippy::redundant_field_names)]
     MP4Box {
         size: s,
         buf: rest,
@@ -154,9 +149,16 @@ fn get_version_flags(buf: &mut &[u8]) -> VersionFlag {
     };
 
     vf.version = (vf.flag >> 28) as u8;
-    vf.flag &= 0x00FFFFFF;
+    vf.flag &= 0x00_FF_FF_FF;
 
-    return vf;
+    vf
+}
+
+/// Read the MPEGBox Size and the type from a buffer.
+///
+/// Returns the number of bytes read, should be 8, the size, the box type).
+pub fn read_box_size_type(buf: &mut &[u8]) -> (usize, u32, u32) {
+    (8, buf.get_u32(), buf.get_u32())
 }
 
 /// FTYP - file type box
@@ -225,9 +227,9 @@ pub fn get_ftyp_box_values<'a>(
     *flags = buf.get_u32();
     // read += 4;
     *version = (*flags >> 28) as u8;
-    *flags &= 0x00FFFFFF;
+    *flags &= 0x00_FF_FF_FF;
 
-    while buf.len() > 0 {
+    while buf.is_empty() {
         compat_brands.push(&buf[0..4]);
         buf.advance(4);
         // read += 4;

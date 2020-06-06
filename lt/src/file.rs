@@ -22,6 +22,23 @@ pub enum FileFormat {
     // ID3(id3::Id3),
 }
 
+impl std::fmt::Display for FileFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            FileFormat::Flac(_) => f.write_str("Flac")?,
+            FileFormat::MPEG4(_) => f.write_str("MPEG-4")?,
+            FileFormat::MP4A(_) => f.write_str("MP4A")?,
+            // FileFormat::MP4B => f.write_str("MP4B")?,
+            // FileFormat::MP4P => f.write_str("MP4P")?,
+            FileFormat::MP3(_) => f.write_str("MP3")?,
+            FileFormat::WAV(_) => f.write_str("WAV")?,
+            // FileFormat::ID3(_) => f.write_str("ID3")?,
+            // FileFormat::Unknown => f.write_str("Unknown")?,
+        };
+        Ok(())
+    }
+}
+
 // Something tells me there is a macro somewhere for this.
 impl std::fmt::Debug for FileFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -45,7 +62,7 @@ impl std::fmt::Debug for FileFormat {
 /// Return the reader with seek position  SeekFrom::Start(0).
 pub fn identify(mut r: impl Read + Seek) -> Result<Option<FileFormat>, std::io::Error> {
     let mut buf = [0; 32];
-    r.read(&mut buf)?;
+    let _n = r.read(&mut buf)?;
     r.seek(SeekFrom::Start(0))?;
 
     // If a decoder retruns a valid result, we don't visit any more of them.
@@ -60,11 +77,10 @@ pub fn identify(mut r: impl Read + Seek) -> Result<Option<FileFormat>, std::io::
         // id3::identify,
     ];
     for id in &ids {
-        match id(&buf) {
-            Some(ff) => return Ok(Some(ff)),
-            None => (),
+        if let Some(ff) = id(&buf) {
+            return Ok(Some(ff));
         }
     }
 
-    return Ok(None);
+    Ok(None)
 }

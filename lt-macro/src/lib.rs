@@ -26,7 +26,7 @@ fn byte_string_to_int_literal(tt: TokenTree) -> syn::LitInt {
                                                            // println!("val: {}", &val);
     let li = syn::LitInt::new(&val, Span::call_site());
     // println!("LitInt: {:?}", li.to_string());
-    li // match &tt {    //     TokenTree::Literal(l) => {    //         println!("Struct: {:?}", l);    //         println!("Display: {}", l);    //         // let is = format!("Int {}", u32::from_be_bytes(l.to_string().as_bytes()));    //         // println!("IntString {}", is);    //     }    //     _ => println!("Not Literal: {:?}", tt),    // }    // tt
+    li
 }
 
 #[proc_macro]
@@ -55,6 +55,7 @@ pub fn define_boxes(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }
 
     let output = quote! {
+        #[allow(unused_parens)]
         def_boxes! {
             #(#v)*
         }
