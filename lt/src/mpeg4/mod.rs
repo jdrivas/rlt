@@ -77,71 +77,64 @@ impl file::Decoder for Mpeg4 {
         println!("File type: {:?}", self);
         read_track(buf, &mut tk);
         println!("Track: {:?}", &tk.title);
-        display_structure(buf);
-        println!("");
+        println!();
 
         Ok(Some(tk))
     }
 }
 
-/// Display the structure an MP4 buffer on stdout.
-/// This prints the Box Type followed by the size
-/// a designtation as of Simple, Full, and Container
-/// as well the path to the particular box.
-/// Finally, this prints structure out using indentation
-/// to indicate conatiners.
-pub fn display_structure(buf: &[u8]) {
-    let b: &mut &[u8] = &mut &(*buf);
-    let boxes = MP4Buffer { buf: b };
+impl Mpeg4 {
+    /// Display the structure an MP4 buffer on stdout.
+    /// This prints the Box Type followed by the size
+    /// a designtation as of Simple, Full, and Container
+    /// as well the path to the particular box.
+    /// Finally, this prints structure out using indentation
+    /// to indicate conatiners.
+    pub fn display_structure(&self, mut r: impl Read + Seek) -> Result<(), Box<dyn Error>> {
+        let mut vbuf = Vec::<u8>::new();
+        let _n = r.read_to_end(&mut vbuf)?;
+        let buf = vbuf.as_slice();
+        let b: &mut &[u8] = &mut &(*buf);
+        let boxes = MP4Buffer { buf: b };
 
-    // let mut l = LevelStack::new(boxes.buf.len());
-    let mut l = LevelStack::new();
-    let mut tabs = String::new();
-    for b in boxes {
-        println!(
-            "{}{} [{:?}]    {:?} - Path: {:?}",
-            tabs,
-            b.box_type.four_cc(),
-            b.size,
-            b.box_type,
-            l.path_string(),
-        );
+        // let mut l = LevelStack::new(boxes.buf.len());
+        let mut l = LevelStack::new();
+        let mut tabs = String::new();
+        for b in boxes {
+            println!(
+                "{}{} [{:?}]    {:?} - Path: {:?}",
+                tabs,
+                b.box_type.four_cc(),
+                b.size,
+                b.box_type,
+                l.path_string(),
+            );
 
-        // Implement indenting with the level stack.
-        // Can't put the tabs.push into the update with
-        // call because we can't have two separate mutable
-        // references to tabs 'live' at the same time.
-        if b.box_type.spec().container != ContainerType::NotContainer {
-            // if let Some(spec) = b.box_type.spec() {
-            //     if spec.container != ContainerType::NotContainer {
-            tabs.push('\t');
-            // }
-        }
-
-        // println!("Adding box: {:?} to {:?}", b, l);
-        l.add_box(b);
-        while l.complete() {
-            tabs.pop();
-            if l.len() > 1 {
-                println!("{}<{}>", tabs, l.top().unwrap().box_type.four_cc());
+            // Implement indenting with the level stack.
+            // Can't put the tabs.push into the update with
+            // call because we can't have two separate mutable
+            // references to tabs 'live' at the same time.
+            if b.box_type.spec().container != ContainerType::NotContainer {
+                // if let Some(spec) = b.box_type.spec() {
+                //     if spec.container != ContainerType::NotContainer {
+                tabs.push('\t');
+                // }
             }
-            l.pop();
-            if l.is_empty() {
-                break;
+
+            // println!("Adding box: {:?} to {:?}", b, l);
+            l.add_box(b);
+            while l.complete() {
+                tabs.pop();
+                if l.len() > 1 {
+                    println!("{}<{}>", tabs, l.top().unwrap().box_type.four_cc());
+                }
+                l.pop();
+                if l.is_empty() {
+                    break;
+                }
             }
         }
-        // l.update_with(
-        //     &b,
-        //     |_, _| {},
-        //     |ls| {
-        //         tabs.pop();
-        //         if ls.len() > 1 {
-        //             if ls.len() > 1 {
-        //                 println!("{}<{}>", tabs, ls.top().unwrap().box_type.code_string());
-        //             }
-        //         }
-        //     },
-        // );
+        Ok(())
     }
 }
 

@@ -6,7 +6,9 @@ use crate::mpeg4;
 use crate::track::Track;
 use crate::wav;
 use std::error::Error;
+use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
+use std::path;
 
 pub trait Decoder {
     fn name(&self) -> &str;
@@ -83,4 +85,15 @@ pub fn identify(mut r: impl Read + Seek) -> Result<Option<FileFormat>, std::io::
     }
 
     Ok(None)
+}
+
+pub fn display_structure(p: &path::PathBuf) -> Result<(), Box<dyn Error>> {
+    let mut file = File::open(p.as_path())?;
+    if let Some(ff) = identify(&mut file)? {
+        match ff {
+            FileFormat::MPEG4(mut d) => d.display_structure(&file)?,
+            _ => println!("Structure display not implemented for {} files.", ff),
+        }
+    };
+    Ok(())
 }

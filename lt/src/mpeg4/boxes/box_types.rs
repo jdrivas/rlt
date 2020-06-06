@@ -1,6 +1,5 @@
 use lt_macro::define_boxes;
 use std::fmt;
-
 // New
 #[derive(Debug, PartialEq, Eq)]
 pub enum ContainerType {

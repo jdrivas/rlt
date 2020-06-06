@@ -118,6 +118,10 @@ enum InteractiveCommands {
   #[structopt(name = "describe")]
   Describe(Path),
 
+  /// List files
+  #[structopt(name = "structure")]
+  Structure(Path),
+
   /// Change working directory
   #[structopt(name = "cd")]
   CD(Path),
@@ -163,21 +167,24 @@ fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult, Box<dyn Er
   match cmd {
     InteractiveCommands::List(p) => {
       display::list_files(p.path.join(" "))?;
-      // display::list_albums(p.path.join(" "))?;
-      Ok(ParseResult::Complete)
-    }
-    InteractiveCommands::CD(p) => {
-      let dir = p.path.join(" ");
-      println!("cd: {}", dir);
-      env::set_current_dir(dir)?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Describe(p) => {
       display::describe_file(p.path.join(" "))?;
       Ok(ParseResult::Complete)
     }
+    InteractiveCommands::Structure(p) => {
+      display::display_structure(p.path.join(" "))?;
+      Ok(ParseResult::Complete)
+    }
     InteractiveCommands::Find(p) => {
       display::display_find_path(p.file_path.join(" "), p.find_path)?;
+      Ok(ParseResult::Complete)
+    }
+    InteractiveCommands::CD(p) => {
+      let dir = p.path.join(" ");
+      println!("cd: {}", dir);
+      env::set_current_dir(dir)?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Quit => Ok(ParseResult::Exit),

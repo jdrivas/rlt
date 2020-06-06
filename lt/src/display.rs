@@ -398,6 +398,14 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
+pub fn display_structure(fname: String) -> Result<(), Box<dyn Error>> {
+  let p = get_file_only_path(&fname)?;
+  file::display_structure(&p)?;
+  Ok(())
+}
+
+// TODO(jdr): Move most of this into a function, probably in file that reads and
+// uses identify to figure out which find to call.
 pub fn display_find_path(fname: String, path: String) -> Result<(), Box<dyn Error>> {
   let p = path::PathBuf::from(&fname);
   if !p.as_path().is_file() {
@@ -505,4 +513,17 @@ fn path_file_name(p: &path::PathBuf) -> String {
     ps += "/";
   }
   ps
+}
+
+fn get_file_only_path(fname: &String) -> Result<path::PathBuf, Box<dyn Error>> {
+  // Only do a single file at a time.
+  let p = path::PathBuf::from(fname);
+  if !p.as_path().is_file() {
+    return Err(Box::new(io::Error::new(
+      io::ErrorKind::Other,
+      format!("{} is not a file.", p.as_path().display()),
+    )));
+  };
+
+  Ok(p)
 }
