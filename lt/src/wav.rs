@@ -10,19 +10,14 @@ pub struct Wav;
 const RIFF_HEADER: &[u8] = b"RIFF";
 const WAVE_HEADER: &[u8] = b"WAVE";
 pub fn identify(b: &[u8]) -> Option<FileFormat> {
-    if b.len() >= 12 {
-        if &b[0..4] == RIFF_HEADER {
-            match &b[8..12] {
-                b if b == WAVE_HEADER => {
-                    return Some(FileFormat::WAV(Wav {
-                        ..Default::default()
-                    }))
-                }
-                _ => return None,
-            }
+    if b.len() >= 12 && &b[0..4] == RIFF_HEADER {
+        match &b[8..12] {
+            b if b == WAVE_HEADER => Some(FileFormat::WAV(Wav {})),
+            _ => None,
         }
+    } else {
+        None
     }
-    return None;
 }
 
 const FORMAT_NAME: &str = "wav";
@@ -53,6 +48,6 @@ impl Decoder for Wav {
             total_samples: wr.duration() as u64,
         };
         tk.format = Some(track::CodecFormat::PCM(f));
-        return Ok(Some(tk));
+        Ok(Some(tk))
     }
 }

@@ -12,20 +12,17 @@ use std::env;
 use std::error::Error;
 use std::io;
 use std::io::Read;
-use std::path;
+use std::path::PathBuf;
 use std::time::Duration;
 
 const NONE_SHORT: &str = "-";
 
 /// lists files and audio files separately dispaying
 /// metadata of the audio file if found.
-pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
-  // We've either provided a file or are using the current directory.
-  let mut p = if fname == "" {
-    env::current_dir()?
-  } else {
-    path::PathBuf::from(fname)
-  };
+pub fn list_files(mut p: PathBuf) -> Result<(), Box<dyn Error>> {
+  if !p.exists() {
+    p = env::current_dir()?
+  }
 
   // Make sure we can find it ....
   let album;
@@ -162,26 +159,25 @@ pub fn list_files(fname: String) -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
-pub fn describe_file(fname: String) -> Result<(), Box<dyn Error>> {
+pub fn describe_file(p: PathBuf) -> Result<(), Box<dyn Error>> {
   // Only do a single file at a time.
-  let p = path::PathBuf::from(&fname);
-  if !p.as_path().is_file() {
+  if !p.is_file() {
     return Err(Box::new(io::Error::new(
       io::ErrorKind::Other,
       format!("{} is not a file.", p.as_path().display()),
     )));
   }
 
-  let (tracks, _) = track::files_from(p)?;
+  let (tracks, files) = track::files_from(p)?;
   if !tracks.is_empty() {
     // this is overkill as we sould only get one file back.
     for tk in tracks {
-      // Display track details
-
       describe_track(tk)?;
     }
-  } else {
-    println!("{}", fname);
+  } else if !files.is_empty() {
+    for f in files {
+      println!("{}", f.display());
+    }
   }
 
   Ok(())
@@ -398,35 +394,35 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
-pub fn display_structure(fname: String) -> Result<(), Box<dyn Error>> {
-  let p = get_file_only_path(&fname)?;
+pub fn display_structure(p: PathBuf) -> Result<(), Box<dyn Error>> {
+  if p.is_file() {}
+  // let p = get_file_only_path(&fname)?;
   file::display_structure(&p)?;
   Ok(())
 }
 
 // TODO(jdr): Move most of this into a function, probably in file that reads and
 // uses identify to figure out which find to call.
-pub fn display_find_path(fname: String, path: String) -> Result<(), Box<dyn Error>> {
-  let p = path::PathBuf::from(&fname);
-  if !p.as_path().is_file() {
+pub fn display_find_path(p: PathBuf, find_path: String) -> Result<(), Box<dyn Error>> {
+  if !p.is_file() {
     return Err(Box::new(io::Error::new(
       io::ErrorKind::Other,
       format!("{} is not a file.", p.as_path().display()),
     )));
   }
 
-  let mut file = std::fs::File::open(fname).unwrap();
+  let mut file = std::fs::File::open(p).unwrap();
   if let Some(ft) = file::identify(&mut file)? {
     match ft {
       file::FileFormat::MPEG4(_) => {
         let mut vbuf = Vec::<u8>::new();
         let _n = file.read_to_end(&mut vbuf);
         let buf = vbuf.as_slice();
-        if let Some(bx) = mpeg4::find::find_box(&path, buf) {
+        if let Some(bx) = mpeg4::find::find_box(&find_path, buf) {
           println!("{:?}", bx);
           mpeg4::util::dump_buffer(bx.buf);
         } else {
-          println!("Couldn't find box in path: {}", path);
+          println!("Couldn't find box in path: {}", find_path);
         };
       }
       _ => println!("Can't perform find on {} files.", ft),
@@ -494,7 +490,7 @@ fn format_duration(d: &Duration, col: bool) -> String {
   }
 }
 
-fn dir_or_cwd(p: path::PathBuf) -> io::Result<path::PathBuf> {
+fn dir_or_cwd(p: PathBuf) -> io::Result<PathBuf> {
   if p.is_dir() {
     return Ok(p);
   }
@@ -503,7 +499,7 @@ fn dir_or_cwd(p: path::PathBuf) -> io::Result<path::PathBuf> {
 
 // Deal with the gymnastics of getting the file
 // name out of the path.
-fn path_file_name(p: &path::PathBuf) -> String {
+fn path_file_name(p: &PathBuf) -> String {
   let pn = match p.as_path().file_name() {
     Some(f) => f,
     None => p.as_path().as_os_str(),
@@ -515,15 +511,15 @@ fn path_file_name(p: &path::PathBuf) -> String {
   ps
 }
 
-fn get_file_only_path(fname: &String) -> Result<path::PathBuf, Box<dyn Error>> {
-  // Only do a single file at a time.
-  let p = path::PathBuf::from(fname);
-  if !p.as_path().is_file() {
-    return Err(Box::new(io::Error::new(
-      io::ErrorKind::Other,
-      format!("{} is not a file.", p.as_path().display()),
-    )));
-  };
+// fn get_file_only_path(fname: &str) -> Result<PathBuf, Box<dyn Error>> {
+//   // Only do a single file at a time.
+//   let p = PathBuf::from(fname);
+//   if !p.as_path().is_file() {
+//     return Err(Box::new(io::Error::new(
+//       io::ErrorKind::Other,
+//       format!("{} is not a file.", p.as_path().display()),
+//     )));
+//   };
 
-  Ok(p)
-}
+//   Ok(p)
+// }

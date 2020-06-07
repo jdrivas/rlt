@@ -91,7 +91,7 @@ pub fn display_structure(p: &path::PathBuf) -> Result<(), Box<dyn Error>> {
     let mut file = File::open(p.as_path())?;
     if let Some(ff) = identify(&mut file)? {
         match ff {
-            FileFormat::MPEG4(mut d) => d.display_structure(&file)?,
+            FileFormat::MPEG4(d) => d.display_structure(&file)?,
             _ => println!("Structure display not implemented for {} files.", ff),
         }
     };

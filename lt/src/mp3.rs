@@ -66,7 +66,7 @@ impl file::Decoder for Mp3 {
         }
 
         for oi in &md.optional_info {
-            tk.track_number = oi.track_number.as_ref().map_or(None, |v| {
+            tk.track_number = oi.track_number.as_ref().and_then(|v| {
                 let sp: Vec<&str> = v.split('/').collect();
                 if sp.len() > 1 {
                     tk.track_total = parse_to_opt(sp[1]);
@@ -77,7 +77,7 @@ impl file::Decoder for Mp3 {
             });
         }
 
-        if md.frames.len() > 0 {
+        if !md.frames.is_empty() {
             // let mut br = HashMap::new();
             // let mut sf = HashMap::new();
             // for f in &md.frames {
@@ -132,8 +132,7 @@ impl file::Decoder for Mp3 {
         r.seek(SeekFrom::Start(0))?;
         let tag = Tag::read_from(r)?;
 
-        let omd;
-        if tag.frames().count() > 0 {
+        let omd = if tag.frames().count() > 0 {
             let mut md = track::ID3Metadata {
                 ..Default::default()
             };
@@ -146,7 +145,7 @@ impl file::Decoder for Mp3 {
                         md.text
                             .entry(fr.id().to_string())
                             .and_modify(|v| v.push(s.clone()))
-                            .or_insert(vec![s.clone()]);
+                            .or_insert_with(|| vec![s.clone()]);
                         // eprintln!("md: {:?}", md);
                     }
                     id3::Content::Comment(c) => {
@@ -155,22 +154,20 @@ impl file::Decoder for Mp3 {
                             .and_modify(|v| {
                                 v.push((c.lang.clone(), c.description.clone(), c.text.clone()))
                             })
-                            .or_insert(vec![(
-                                c.lang.clone(),
-                                c.description.clone(),
-                                c.text.clone(),
-                            )]);
+                            .or_insert_with(|| {
+                                vec![(c.lang.clone(), c.description.clone(), c.text.clone())]
+                            });
                     }
                     _ => (),
                 }
             }
-            omd = Some(track::FormatMetadata::ID3(md));
+            Some(track::FormatMetadata::ID3(md))
         } else {
-            omd = None;
-        }
+            None
+        };
         tk.metadata = omd;
 
-        return Ok(Some(tk));
+        Ok(Some(tk))
     }
 }
 
@@ -182,26 +179,23 @@ fn parse_to_opt<T: std::str::FromStr>(s: &str) -> Option<T> {
 }
 
 fn update_track(tk: &mut track::Track, fr: &id3::Frame, s: &str) {
+    // Some of these values are presented as "num/total".
     let sp: Vec<&str> = s.split('/').collect();
     match fr.id() {
         "TPOS" => {
-            if sp.len() > 1 {
-                if tk.disk_total == None {
-                    tk.disk_total = parse_to_opt(sp[1]);
-                }
-            }
             if tk.disk_number == None {
                 tk.disk_number = parse_to_opt(sp[0]);
             }
+            if sp.len() > 1 && tk.disk_total == None {
+                tk.disk_total = parse_to_opt(sp[1]);
+            }
         }
         "TRCK" => {
-            if sp.len() > 1 {
-                if tk.track_total == None {
-                    tk.track_total = parse_to_opt(sp[1]);
-                }
-            }
             if tk.track_number == None {
                 tk.track_number = parse_to_opt(sp[0]);
+            }
+            if sp.len() > 1 && tk.track_total == None {
+                tk.track_total = parse_to_opt(sp[1]);
             }
         }
         "TALB" => {

@@ -51,8 +51,7 @@ pub struct MPEG4AudioFormat {
 
 impl MPEG4AudioFormat {
   pub fn sample_rate(&self) -> f64 {
-    let sr = f64::from(self.sr >> 16);
-    sr
+    f64::from(self.sr >> 16)
   }
 
   pub fn duration(&self) -> Duration {

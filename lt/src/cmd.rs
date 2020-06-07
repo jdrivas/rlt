@@ -6,10 +6,11 @@ use crate::display;
 use clap::AppSettings;
 
 // use chrono::Local;
+use linefeed::complete::PathCompleter;
 use linefeed::{Interface, ReadResult};
 use std::env;
 use std::error::Error;
-use std::path;
+use std::path::PathBuf;
 use std::sync::{mpsc, Arc};
 use std::thread;
 
@@ -39,7 +40,7 @@ pub fn run(c: Config) -> Result<(), Box<dyn Error>> {
       // Bad command, try to run a List
       clap::ErrorKind::MissingArgumentOrSubcommand | clap::ErrorKind::UnknownArgument => {
         let p = if env::args().len() > 1 {
-          path::PathBuf::from(&env::args().nth(1).unwrap())
+          PathBuf::from(&env::args().nth(1).unwrap())
         } else {
           env::current_dir()?
         };
@@ -47,7 +48,7 @@ pub fn run(c: Config) -> Result<(), Box<dyn Error>> {
           parse_app(AppCmds {
             history_path: None,
             config: "".to_string(),
-            subcmd: RootSubcommand::InteractiveSubcommand(InteractiveCommands::List(Path {
+            subcmd: RootSubcommand::InteractiveSubcommand(InteractiveCommands::List(FilePath {
               path: vec![p.as_path().to_str().unwrap().to_string()],
             })),
           })?;
@@ -84,7 +85,7 @@ struct AppCmds {
 #[derive(StructOpt, Debug)]
 enum RootSubcommand {
   /// Run in interactive mode
-  Interactive(Path),
+  Interactive(FilePath),
   #[structopt(flatten)]
   InteractiveSubcommand(InteractiveCommands),
 }
@@ -103,7 +104,7 @@ struct ICmds {
 #[derive(StructOpt, Debug)]
 enum InteractiveCommands {
   /// End the program
-  #[structopt(name = "quit")]
+  #[structopt(name = "quit", alias = "exit")]
   Quit,
 
   /// Find Files
@@ -112,30 +113,75 @@ enum InteractiveCommands {
 
   /// List files
   #[structopt(name = "list", alias = "ls")]
-  List(Path),
+  List(FilePath),
 
   /// Details on a track
   #[structopt(name = "describe")]
-  Describe(Path),
+  Describe(FilePath),
 
   /// List files
   #[structopt(name = "structure")]
-  Structure(Path),
+  Structure(FilePath),
 
   /// Change working directory
   #[structopt(name = "cd")]
-  CD(Path),
+  CD(FilePath),
 }
 
 #[derive(StructOpt, Debug)]
-struct Path {
+struct FilePath {
   path: Vec<String>,
 }
+
+impl FilePath {
+  fn path(&self) -> PathBuf {
+    strings_to_pathbuf(&self.path)
+  }
+}
+
+// impl std::string::ToString for FilePath {
+//   fn to_string(&self) -> String {
+//     strings_to_pathbuf(self.path)
+//   let mut s = self.path.join(" ");
+//   // Assume we mean the current directory.
+//   if s.is_empty() {
+//     s = ".".to_string();
+//   }
+//   // The FileCompleter returns strings like "Jackson\ Browne".
+//   // This doesn't work with any system file manipulation.
+//   s.replace("\\", "")
+// }
+// }
+
+// // We don't do this with From because we really
+// // never have the case to go to a FilePath.
+// impl std::convert::Into<PathBuf> for FilePath {
+//   fn into(self) -> PathBuf {
+//     PathBuf::from(self.to_string())
+//   }
+// }
 
 #[derive(StructOpt, Debug)]
 struct FindPath {
   find_path: String,
   file_path: Vec<String>,
+}
+
+impl FindPath {
+  fn file_path(&self) -> PathBuf {
+    strings_to_pathbuf(&self.file_path)
+  }
+}
+
+fn strings_to_pathbuf(v: &[String]) -> PathBuf {
+  let mut s = v.join(" ");
+  // Assume we mean the current directory.
+  if s.is_empty() {
+    s = ".".to_string();
+  }
+  // The FileCompleter returns strings like "Jackson\ Browne".
+  // This doesn't work with any system file manipulation.
+  PathBuf::from(s.replace("\\", ""))
 }
 
 // Parse and execute an AppCmds. This specifically sets up
@@ -147,12 +193,12 @@ fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
     // Go into interactive mode.
     RootSubcommand::Interactive(p) => {
       // If a directory is given, CD to it.
-      // TODO: if a file is given, cd to the directory of the file?
-      let dir = p.path.join(" ");
-      if dir != "" {
-        if let Err(e) = env::set_current_dir(&dir) {
-          eprintln!("Can't CD to {}: {}", dir, e);
-        }
+      // let p = PathBuf::from(p.to_string());
+      let p = p.path();
+      if p.is_dir() {
+        env::set_current_dir(p)?;
+      } else {
+        eprintln!("Can't cd to {:?}, it's not a directory.", p);
       }
       readloop(opt.history_path)?;
       Ok(ParseResult::Exit)
@@ -166,25 +212,29 @@ fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
 fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult, Box<dyn Error>> {
   match cmd {
     InteractiveCommands::List(p) => {
-      display::list_files(p.path.join(" "))?;
+      // display::list_files(PathBuf::from(p.to_string()))?;
+      display::list_files(p.path())?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Describe(p) => {
-      display::describe_file(p.path.join(" "))?;
+      // display::describe_file(PathBuf::from(p.to_string()))?;
+      display::describe_file(p.path())?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Structure(p) => {
-      display::display_structure(p.path.join(" "))?;
+      // display::display_structure(PathBuf::from(p.to_string()))?;
+      display::display_structure(p.path())?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Find(p) => {
-      display::display_find_path(p.file_path.join(" "), p.find_path)?;
+      display::display_find_path(p.file_path(), p.find_path)?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::CD(p) => {
-      let dir = p.path.join(" ");
-      println!("cd: {}", dir);
-      env::set_current_dir(dir)?;
+      // let p = PathBuf::from(p.to_string());
+      let p = p.path();
+      println!("cd: {}", p.display());
+      env::set_current_dir(p)?;
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Quit => Ok(ParseResult::Exit),
@@ -243,7 +293,7 @@ impl From<std::io::Error> for ParseError {
 // Interactive readloop functionality for ICmds.
 // This supports an asynchronous prompt update capability.
 
-// TODO: Need to automatically udpate
+// TODO(Jdr) Need to automatically udpate
 // based on current directory.
 fn readloop(history_path: Option<String>) -> Result<(), Box<dyn Error>> {
   //
@@ -253,6 +303,7 @@ fn readloop(history_path: Option<String>) -> Result<(), Box<dyn Error>> {
 
   // Set up read loop.
   let rl = Arc::new(Interface::new("cli").unwrap());
+  rl.set_completer(Arc::new(PathCompleter));
   if let Err(e) = rl.set_prompt("cli> ") {
     eprintln!("Couldn't set prompt: {}", e)
   }
@@ -323,8 +374,8 @@ fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
     loop {
       thread::sleep(Duration::from_millis(1000));
       let cd = match env::current_dir() {
-        Ok(p) => p.as_path().to_owned(),
-        Err(_) => path::Path::new("Unknown)").to_owned(),
+        Ok(p) => p,
+        Err(_) => PathBuf::from("Unknown)"),
       };
       // let cd;
       // if let Ok(p) = env::current_dir() {
@@ -333,7 +384,7 @@ fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
       //   cd = path::Path::new("Unknown").to_owned();
       // }
       if let Err(e) = tx.send(PromptUpdate {
-        new_prompt: String::from(format!("cli <{}> ", cd.display())),
+        new_prompt: format!("cli <{}> ", cd.display()),
       }) {
         eprintln!("Failed to send a new prompt: {:?}", e)
       }

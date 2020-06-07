@@ -16,14 +16,11 @@ pub struct Flac;
 
 const FLAC_HEADER: &[u8] = b"fLaC";
 pub fn identify(b: &[u8]) -> Option<FileFormat> {
-    if b.len() >= 4 {
-        if &b[0..4] == FLAC_HEADER {
-            return Some(FileFormat::Flac(Flac {
-                ..Default::default()
-            }));
-        }
+    if b.len() >= 4 && &b[0..4] == FLAC_HEADER {
+        Some(FileFormat::Flac(Flac {}))
+    } else {
+        None
     }
-    return None;
 }
 
 const FORMAT_NAME: &str = "flac";
@@ -54,18 +51,17 @@ impl file::Decoder for Flac {
                     ..Default::default()
                 };
                 hydrate(&t, &mut tk);
-                return Ok(Some(tk));
+                Ok(Some(tk))
             }
-            Err(e) => {
-                return match e.kind {
-                    metaflac::ErrorKind::InvalidInput => Ok(None),
-                    metaflac::ErrorKind::Io(k) => Err(Box::new(k)),
-                    _ => Err(Box::new(e)),
-                };
-            }
+            Err(e) => match e.kind {
+                metaflac::ErrorKind::InvalidInput => Ok(None),
+                metaflac::ErrorKind::Io(k) => Err(Box::new(k)),
+                _ => Err(Box::new(e)),
+            },
         }
     }
 }
+
 fn hydrate(t: &Tag, tk: &mut track::Track) {
     for b in t.blocks() {
         match b {
@@ -108,10 +104,8 @@ fn vorbis_hydrate(vc: &metaflac::block::VorbisComment, tk: &mut track::Track) {
 
     if let Some(a) = vc.artist() {
         tk.artist = Some(a.join("/"));
-    } else {
-        if let Some(a) = vc.album_artist() {
-            tk.artist = Some(a.join("/"));
-        }
+    } else if let Some(a) = vc.album_artist() {
+        tk.artist = Some(a.join("/"));
     }
 
     // Fill in the flac metadata.
