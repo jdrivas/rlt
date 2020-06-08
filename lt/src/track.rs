@@ -7,12 +7,20 @@ use std::fmt;
 use std::fs::File;
 // use std::io::SeekFrom;
 // use std::io::{Read, Seek};
+use std::io::Write;
 use std::path;
 use std::time::Duration;
 use std::vec::Vec;
 
-// CodecFormats
+use format::consts::FORMAT_CLEAN;
+use prettytable::{format, Table};
 
+//
+// CodecFormats
+//
+
+/// CodecFormats
+/// Describes sample data based on underlying encoding.
 #[derive(Debug)]
 pub enum CodecFormat {
   PCM(PCMFormat),
@@ -71,6 +79,7 @@ pub struct MPEG3Format {
   pub duration: Duration,
 }
 
+/// Return a printable string for MPEG-3 version.
 impl MPEG3Format {
   pub fn version_string(&self) -> String {
     match &self.version {
@@ -117,9 +126,11 @@ pub enum MP3Layer {
   Unknown,
 }
 
-/// Format Specific Metadata
+//
+// Format Specific Metadata
+///
 
-// Metadata
+/// Full metadata storage access
 #[derive(Debug)]
 pub enum FormatMetadata {
   Flac(FlacMetadata),
@@ -133,11 +144,99 @@ pub struct FlacMetadata {
   pub comments: HashMap<String, Vec<String>>,
 }
 
+/// Print the results to a writer.
+impl FlacMetadata {
+  pub fn print(&self, mut w: impl Write) -> Result<(), std::io::Error> {
+    println!("Metadata");
+    if !self.comments.is_empty() {
+      let mut table = Table::new();
+      table.set_format(*FORMAT_CLEAN);
+      table.add_row(row!["Key", "Value"]);
+
+      let mut vs: Vec<_> = self.comments.iter().collect();
+      vs.sort();
+      for (k, v) in vs {
+        table.add_row(row![k, v[0]]);
+        let mut i = 1;
+        while i < v.len() {
+          table.add_row(row!["", v[i]]);
+          i += 1;
+        }
+      }
+
+      // Dump the table to the writer.
+      if let Err(e) = table.print(&mut w) {
+        return Err(e);
+      };
+    } else {
+      write!(w, "No Comments.")?;
+    }
+    Ok(())
+  }
+}
+
 /// ID3 Format Metadata
 #[derive(Debug, Default)]
 pub struct ID3Metadata {
   pub text: HashMap<String, Vec<String>>,
   pub comments: HashMap<String, Vec<(String, String, String)>>,
+}
+
+impl ID3Metadata {
+  pub fn print(&self, mut w: impl Write) -> Result<(), std::io::Error> {
+    println!("Metadata");
+
+    println!("\nText");
+    if !self.text.is_empty() {
+      let mut table = Table::new();
+      table.set_format(*FORMAT_CLEAN);
+      table.add_row(row!["Key", "Value"]);
+
+      let mut vs: Vec<_> = self.text.iter().collect();
+      vs.sort();
+      for (k, v) in vs {
+        table.add_row(row![k, v[0]]);
+        let mut i = 1;
+        while i < v.len() {
+          table.add_row(row!["", v[i]]);
+          i += 1;
+        }
+      }
+
+      // Dump the table to the writer.
+      if let Err(e) = table.print(&mut w) {
+        return Err(e);
+      };
+    } else {
+      write!(w, "No text.")?;
+    }
+
+    println!("\nComments");
+    if !self.comments.is_empty() {
+      let mut table = Table::new();
+      table.set_format(*FORMAT_CLEAN);
+      table.add_row(row!["Key", "Lang", "Description", "Text"]);
+
+      let mut vs: Vec<_> = self.comments.iter().collect();
+      vs.sort();
+      for (k, v) in vs {
+        table.add_row(row![k, v[0].0, v[0].1, v[0].2]);
+        let mut i = 1;
+        while i < v.len() {
+          table.add_row(row!["", v[0].0, v[0].1, v[0].2]);
+          i += 1;
+        }
+      }
+
+      // Dump the table to the writer.
+      if let Err(e) = table.print(&mut w) {
+        return Err(e);
+      };
+    } else {
+      write!(w, "No Comments.")?;
+    }
+    Ok(())
+  }
 }
 
 /// MPeg 4 Format Metadata
@@ -146,6 +245,39 @@ pub struct MPEG4Metadata {
   pub text: HashMap<String, String>,
   // pub data: HashMap<String, [u8]>, TODO(jdr): Figure out how to capture Data typed metadata.
   pub byte: HashMap<String, u8>,
+}
+
+impl MPEG4Metadata {
+  pub fn print(&self, mut w: impl Write) -> Result<(), std::io::Error> {
+    println!("Metadata");
+    if !self.text.is_empty() || !self.byte.is_empty() {
+      let mut table = Table::new();
+      table.set_format(*FORMAT_CLEAN);
+      table.add_row(row!["Key", "Value"]);
+
+      // Print the text ones first.
+      let mut vs: Vec<_> = self.text.iter().collect();
+      vs.sort();
+      for (k, v) in vs {
+        table.add_row(row![k, v]);
+      }
+
+      // Then the single bytes ones.
+      let mut vs: Vec<_> = self.byte.iter().collect();
+      vs.sort();
+      for (k, v) in vs {
+        table.add_row(row![k, v]);
+      }
+
+      // Display the table.
+      if let Err(e) = table.print(&mut w) {
+        return Err(e);
+      };
+    } else {
+      write!(w, "No Metadata.")?;
+    }
+    Ok(())
+  }
 }
 
 // Track Definition

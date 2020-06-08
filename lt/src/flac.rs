@@ -109,8 +109,6 @@ fn vorbis_hydrate(vc: &metaflac::block::VorbisComment, tk: &mut track::Track) {
     }
 
     // Fill in the flac metadata.
-    // TODO: Is there a more efficient way to do this?
-    // Can we hand ownership over?
     if let Some(md) = &mut tk.metadata {
         if let track::FormatMetadata::Flac(md) = md {
             for (k, v) in &vc.comments {

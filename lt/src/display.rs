@@ -273,6 +273,7 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
         ));
       }
 
+      // Mpeg4
       track::CodecFormat::MPEG4(f) => {
         tes.push(Te(
           "Sample Rate",
@@ -293,102 +294,20 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
     }
   }
 
-  // Tail basic track
+  // Tail of basic track
   tes.push(Te("Size", format!("{} bytes", fsize)));
+
+  // Display.
   print_te_list(tes);
   println!();
 
   // Display Metadata.
   if let Some(md) = tk.metadata {
+    let o = std::io::stdout();
     match md {
-      track::FormatMetadata::Flac(fmd) => {
-        println!("Metadata");
-        let mut table = Table::new();
-        table.set_format(*FORMAT_CLEAN);
-        table.add_row(row!["Key", "Value"]);
-        let mut vs: Vec<_> = fmd.comments.iter().collect();
-        vs.sort();
-        for (k, v) in vs {
-          table.add_row(row![k, v[0]]);
-          let mut i = 1;
-          while i < v.len() {
-            table.add_row(row!["", v[i]]);
-            i += 1;
-          }
-          table.printstd();
-        }
-      }
-
-      track::FormatMetadata::ID3(imd) => {
-        println!("Metadata");
-
-        println!("\nText");
-        if !imd.text.is_empty() {
-          let mut table = Table::new();
-          table.set_format(*FORMAT_CLEAN);
-          table.add_row(row!["Key", "Value"]);
-          let mut vs: Vec<_> = imd.text.iter().collect();
-          vs.sort();
-          for (k, v) in vs {
-            table.add_row(row![k, v[0]]);
-            let mut i = 1;
-            while i < v.len() {
-              table.add_row(row!["", v[i]]);
-              i += 1;
-            }
-          }
-          table.printstd();
-        } else {
-          println!("No text.");
-        }
-
-        println!("\nComments");
-        if !imd.comments.is_empty() {
-          let mut table = Table::new();
-          table.set_format(*FORMAT_CLEAN);
-          table.add_row(row!["Key", "Lang", "Description", "Text"]);
-          let mut vs: Vec<_> = imd.comments.iter().collect();
-          vs.sort();
-          for (k, v) in vs {
-            table.add_row(row![k, v[0].0, v[0].1, v[0].2]);
-            let mut i = 1;
-            while i < v.len() {
-              table.add_row(row!["", v[0].0, v[0].1, v[0].2]);
-              i += 1;
-            }
-          }
-          table.printstd();
-        } else {
-          println!("No Comments.")
-        }
-      }
-
-      track::FormatMetadata::MP4(mmd) => {
-        println!("Metadata");
-        if !mmd.text.is_empty() || !mmd.byte.is_empty() {
-          let mut table = Table::new();
-          table.set_format(*FORMAT_CLEAN);
-          table.add_row(row!["Key", "Value"]);
-          if !mmd.text.is_empty() {
-            let mut vs: Vec<_> = mmd.text.iter().collect();
-            vs.sort();
-            for (k, v) in vs {
-              table.add_row(row![k, v]);
-            }
-          }
-          if !mmd.byte.is_empty() {
-            let mut vs: Vec<_> = mmd.byte.iter().collect();
-            vs.sort();
-            for (k, v) in vs {
-              table.add_row(row![k, v]);
-            }
-          }
-          table.printstd();
-        // println!("{:?}", mmd);
-        } else {
-          println!("No metadata.");
-        }
-      }
+      track::FormatMetadata::Flac(fmd) => fmd.print(o)?,
+      track::FormatMetadata::ID3(imd) => imd.print(o)?,
+      track::FormatMetadata::MP4(mmd) => mmd.print(o)?,
     }
   }
   Ok(())
