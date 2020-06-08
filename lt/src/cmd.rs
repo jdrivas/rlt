@@ -138,28 +138,6 @@ impl FilePath {
   }
 }
 
-// impl std::string::ToString for FilePath {
-//   fn to_string(&self) -> String {
-//     strings_to_pathbuf(self.path)
-//   let mut s = self.path.join(" ");
-//   // Assume we mean the current directory.
-//   if s.is_empty() {
-//     s = ".".to_string();
-//   }
-//   // The FileCompleter returns strings like "Jackson\ Browne".
-//   // This doesn't work with any system file manipulation.
-//   s.replace("\\", "")
-// }
-// }
-
-// // We don't do this with From because we really
-// // never have the case to go to a FilePath.
-// impl std::convert::Into<PathBuf> for FilePath {
-//   fn into(self) -> PathBuf {
-//     PathBuf::from(self.to_string())
-//   }
-// }
-
 #[derive(StructOpt, Debug)]
 struct FindPath {
   find_path: String,
@@ -190,7 +168,7 @@ fn strings_to_pathbuf(v: &[String]) -> PathBuf {
 fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
   // Prompt updates for readline loop.
   let (tx, rx) = mpsc::channel();
-  // let tx1 = mpsc::Sender::clone(&tx);
+  let tx1 = mpsc::Sender::clone(&tx);
   prompt_start_up(tx);
 
   match opt.subcmd {
@@ -205,22 +183,27 @@ fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
         eprintln!("Can't cd to {:?}, it's not a directory.", p);
       }
 
+      // Get the history "path", turn it into a PathBuf and
+      // get a full absolute path from it.
       let hp = if let Some(ps) = opt.history_path {
-        let f = std::fs::canonicalize(PathBuf::from(ps))?;
+        let f = PathBuf::from(ps).canonicalize()?;
         Some(f)
       } else {
         None
       };
-      readloop(hp, rx)?;
+      readloop(hp, tx1, rx)?;
       Ok(ParseResult::Exit)
     }
     // Just execute the given command.
-    RootSubcommand::InteractiveSubcommand(c) => parse_interactive(c),
+    RootSubcommand::InteractiveSubcommand(c) => parse_interactive(c, &tx1),
   }
 }
 
 // Command implementation
-fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult, Box<dyn Error>> {
+fn parse_interactive(
+  cmd: InteractiveCommands,
+  tx: &mpsc::Sender<PromptUpdate>,
+) -> Result<ParseResult, Box<dyn Error>> {
   match cmd {
     InteractiveCommands::List(p) => {
       // display::list_files(PathBuf::from(p.to_string()))?;
@@ -246,6 +229,7 @@ fn parse_interactive(cmd: InteractiveCommands) -> Result<ParseResult, Box<dyn Er
       let p = p.path();
       println!("cd: {}", p.display());
       env::set_current_dir(p)?;
+      send_directory(tx);
       Ok(ParseResult::Complete)
     }
     InteractiveCommands::Quit => Ok(ParseResult::Exit),
@@ -308,6 +292,7 @@ impl From<std::io::Error> for ParseError {
 // based on current directory.
 fn readloop(
   history_path: Option<PathBuf>,
+  tx: mpsc::Sender<PromptUpdate>,
   rx: mpsc::Receiver<PromptUpdate>,
 ) -> Result<(), Box<dyn Error>> {
   // Set up read loop.
@@ -345,7 +330,7 @@ fn readloop(
         let words: Vec<&str> = line.split_whitespace().collect();
         rl.add_history_unique(words.join(" "));
         match ICmds::from_iter_safe(words) {
-          Ok(opt) => match parse_interactive(opt.subcmd) {
+          Ok(opt) => match parse_interactive(opt.subcmd, &tx) {
             Ok(ParseResult::Complete) => continue,
             Ok(ParseResult::Exit) => {
               if let Some(path) = history_path.as_ref() {
@@ -376,24 +361,26 @@ struct PromptUpdate {
 
 // const TIME_FMT: &str = "%a %b %e %Y %T";
 fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
-  thread::spawn(move || {
-    loop {
-      let cd = match env::current_dir() {
-        Ok(p) => p,
-        Err(_) => PathBuf::from("Unknown)"),
-      };
-      // let cd;
-      // if let Ok(p) = env::current_dir() {
-      //   cd = p.as_path().to_owned()
-      // } else {
-      //   cd = path::Path::new("Unknown").to_owned();
-      // }
-      if let Err(e) = tx.send(PromptUpdate {
-        new_prompt: format!("cli <{}> ", cd.display()),
-      }) {
-        eprintln!("Failed to send a new prompt: {:?}", e)
-      }
-      thread::sleep(Duration::from_millis(1000));
-    }
+  thread::spawn(move || loop {
+    send_directory(&tx);
+    thread::sleep(Duration::from_millis(1000));
   });
+}
+
+fn send_directory(tx: &mpsc::Sender<PromptUpdate>) {
+  let cd = match env::current_dir() {
+    Ok(p) => p,
+    Err(_) => PathBuf::from("Unknown)"),
+  };
+  // let cd;
+  // if let Ok(p) = env::current_dir() {
+  //   cd = p.as_path().to_owned()
+  // } else {
+  //   cd = path::Path::new("Unknown").to_owned();
+  // }
+  if let Err(e) = tx.send(PromptUpdate {
+    new_prompt: format!("cli <{}> ", cd.display()),
+  }) {
+    eprintln!("Failed to send a new prompt: {:?}", e)
+  }
 }
