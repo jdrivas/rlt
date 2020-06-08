@@ -30,14 +30,13 @@ pub struct Config {
 /// If the command given is not a valid command, run will assume a list command
 /// on the first argument provided.
 pub fn run(c: Config) -> Result<(), Box<dyn Error>> {
-  // if env::args().len() > 1 {
   match AppCmds::from_iter_safe(&env::args().collect::<Vec<String>>()[1..]) {
     Ok(mut opt) => {
       opt.history_path = c.history_path;
       parse_app(opt).map(|_a| ())? // Eat the return and return an ok.
     }
     Err(e) => match e.kind {
-      // Bad command, try to run a List
+      // Bad command, try to run a List command.
       clap::ErrorKind::MissingArgumentOrSubcommand | clap::ErrorKind::UnknownArgument => {
         let p = if env::args().len() > 1 {
           PathBuf::from(&env::args().nth(1).unwrap())
@@ -58,7 +57,7 @@ pub fn run(c: Config) -> Result<(), Box<dyn Error>> {
           AppCmds::clap().write_long_help(&mut std::io::stderr())?;
         }
       }
-      // Not an unknown command, so print the error message.
+      // Not an knonw command, so print the error message.
       _ => eprintln!("{:?}", e),
     },
   }
@@ -186,9 +185,14 @@ fn strings_to_pathbuf(v: &[String]) -> PathBuf {
 
 // Parse and execute an AppCmds. This specifically sets up
 // the ability to run either a single command from InteractiveCmds
-// and return with a reswult, or to run an interactive loop
+// and return with a result, or to run an interactive loop
 // for commands from InteractiveCommands.
 fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
+  // Prompt updates for readline loop.
+  let (tx, rx) = mpsc::channel();
+  // let tx1 = mpsc::Sender::clone(&tx);
+  prompt_start_up(tx);
+
   match opt.subcmd {
     // Go into interactive mode.
     RootSubcommand::Interactive(p) => {
@@ -200,7 +204,14 @@ fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
       } else {
         eprintln!("Can't cd to {:?}, it's not a directory.", p);
       }
-      readloop(opt.history_path)?;
+
+      let hp = if let Some(ps) = opt.history_path {
+        let f = std::fs::canonicalize(PathBuf::from(ps))?;
+        Some(f)
+      } else {
+        None
+      };
+      readloop(hp, rx)?;
       Ok(ParseResult::Exit)
     }
     // Just execute the given command.
@@ -295,13 +306,12 @@ impl From<std::io::Error> for ParseError {
 
 // TODO(Jdr) Need to automatically udpate
 // based on current directory.
-fn readloop(history_path: Option<String>) -> Result<(), Box<dyn Error>> {
-  //
-  // Prompt & Readline loop.
-  let (tx, rx) = mpsc::channel();
-  prompt_start_up(tx);
-
+fn readloop(
+  history_path: Option<PathBuf>,
+  rx: mpsc::Receiver<PromptUpdate>,
+) -> Result<(), Box<dyn Error>> {
   // Set up read loop.
+
   let rl = Arc::new(Interface::new("cli").unwrap());
   rl.set_completer(Arc::new(PathCompleter));
   if let Err(e) = rl.set_prompt("cli> ") {
@@ -309,13 +319,28 @@ fn readloop(history_path: Option<String>) -> Result<(), Box<dyn Error>> {
   }
 
   if let Some(path) = history_path.as_ref() {
-    if let Err(e) = rl.load_history(path) {
+    if let Err(e) = rl.load_history(&path) {
       eprintln!("Failed to load history file {:?}: {}", path, e);
     }
   }
 
   loop {
-    match rl.read_line_step(Some(Duration::from_millis(1000))) {
+    // Check for propt uppdate.
+    let mut p = None;
+    for pm in rx.try_iter() {
+      p = Some(pm);
+    }
+
+    if let Some(p) = p {
+      if let Err(e) = rl.set_prompt(&p.new_prompt) {
+        eprintln!("Failed to set prompt: {:?}", e)
+      }
+    };
+
+    let rl_res = rl.read_line_step(Some(Duration::from_millis(1000)));
+
+    // process result if there is one.
+    match rl_res {
       Ok(Some(ReadResult::Input(line))) => {
         let words: Vec<&str> = line.split_whitespace().collect();
         rl.add_history_unique(words.join(" "));
@@ -336,30 +361,11 @@ fn readloop(history_path: Option<String>) -> Result<(), Box<dyn Error>> {
         }
       }
       // Check for a prompt update.
-      Ok(None) => {
-        let mut p = None;
-        // Eat all that have come in but that last.
-        for pm in rx.try_iter() {
-          p = Some(pm);
-        }
-        // If something new, then do the update.
-        if let Some(p) = p {
-          if let Err(e) = rl.set_prompt(&p.new_prompt) {
-            eprintln!("Failed to set prompt: {:?}", e)
-          }
-        }
-        continue;
-      }
-      Ok(Some(ReadResult::Eof)) => {
-        println!("Use the \"quit\" command to exit the applicaiton.");
-        continue;
-      }
-      Ok(Some(ReadResult::Signal(s))) => {
-        println!("Caught signal: {:?}", s);
-        continue;
-      }
+      Ok(None) => continue,
+      Ok(Some(ReadResult::Eof)) => println!("Use the \"quit\" command to exit the applicaiton."),
+      Ok(Some(ReadResult::Signal(s))) => println!("Caught signal: {:?}", s),
       Err(e) => eprintln!("Failed on readline: {:?}", e),
-    }
+    };
   }
   Ok(())
 }
@@ -372,7 +378,6 @@ struct PromptUpdate {
 fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
   thread::spawn(move || {
     loop {
-      thread::sleep(Duration::from_millis(1000));
       let cd = match env::current_dir() {
         Ok(p) => p,
         Err(_) => PathBuf::from("Unknown)"),
@@ -388,6 +393,7 @@ fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
       }) {
         eprintln!("Failed to send a new prompt: {:?}", e)
       }
+      thread::sleep(Duration::from_millis(1000));
     }
   });
 }
