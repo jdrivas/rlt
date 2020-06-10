@@ -4,3 +4,6 @@ members = [
     "lt-macro"
 ]
 # members = ["lt"]
+
+[patch.crates-io]
+# linefeed = {path = "../linefeed" }
