@@ -2,12 +2,14 @@ extern crate clap;
 extern crate linefeed;
 extern crate structopt;
 
+use crate::completion::PathCompleter;
 use crate::display;
 use clap::AppSettings;
 
 // use chrono::Local;
-use linefeed::complete::PathCompleter;
+// use linefeed::complete::PathCompleter;
 use linefeed::{Interface, ReadResult};
+
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
@@ -227,7 +229,7 @@ fn parse_interactive(
     InteractiveCommands::CD(p) => {
       // let p = PathBuf::from(p.to_string());
       let p = p.path();
-      println!("cd: {}", p.display());
+      // println!("cd: {}", p.display());
       env::set_current_dir(p)?;
       send_directory(tx);
       Ok(ParseResult::Complete)

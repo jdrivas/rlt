@@ -4,6 +4,7 @@ extern crate prettytable;
 // extern crate lazy_static;
 pub mod album;
 pub mod cmd;
+pub mod completion;
 pub mod display;
 pub mod file;
 pub mod flac;

@@ -144,7 +144,7 @@ pub struct FlacMetadata {
   pub comments: HashMap<String, Vec<String>>,
 }
 
-/// Print the results to a writer.
+/// Print the metadata, as key values in columns, to a writer.
 impl FlacMetadata {
   pub fn print(&self, mut w: impl Write) -> Result<(), std::io::Error> {
     println!("Metadata");
