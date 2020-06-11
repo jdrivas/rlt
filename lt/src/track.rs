@@ -21,12 +21,19 @@ use prettytable::{format, Table};
 // CodecFormats
 //
 
+//
+// PCM
+//
+
 /// CodecFormats
 /// Describes sample data based on underlying encoding.
 #[derive(Debug)]
 pub enum CodecFormat {
+  /// Describes PCM audio data
   PCM(PCMFormat),
+  /// Describes MPEG 3 Describes audio data
   MPEG3(MPEG3Format),
+  /// Describes MPEG 4 Describes audio data.
   MPEG4(MPEG4AudioFormat),
 }
 
@@ -34,7 +41,7 @@ pub enum CodecFormat {
 /// Basic PCM sample data.
 #[derive(Default, Debug)]
 pub struct PCMFormat {
-  /// Sampme rate in hertZ
+  /// Sample rate in hertz.
   pub sample_rate: u32,
   /// Channels of audio (eg. 1 for mono, 2 for stereo etc.).
   pub channels: u8,
@@ -55,6 +62,81 @@ impl PCMFormat {
     Duration::from_nanos(ns as u64)
   }
 }
+
+//
+// MPEG3
+//
+
+/// MPEG-3 Codec Format
+/// Representation of MPeg layers 1 - layers 3.
+pub struct MPEG3Format {
+  /// Encoded  stream bitrate.
+  pub bitrate: u16,
+  /// Source sample rate.
+  pub sample_rate: u16,
+  /// Mpeg audio encoding version.
+  pub version: MPVersion,
+  /// Mpeg audio encoding layer.
+  pub layer: MP3Layer,
+  /// Track duration.
+  pub duration: Duration,
+}
+
+/// Return a printable string for MPEG-3 version.
+impl MPEG3Format {
+  /// Printable string for MPEG audio version (e.g. MPEG-1).
+  pub fn version_string(&self) -> String {
+    match &self.version {
+      MPVersion::Reserved => "Reserved".to_string(),
+      MPVersion::MPEG1 => "MPEG-1".to_string(),
+      MPVersion::MPEG2 => "MPEG-2".to_string(),
+      MPVersion::MPEG2_5 => "MPEG-2.5".to_string(),
+      MPVersion::Unknown => "Unknwon".to_string(),
+    }
+  }
+
+  ///  Printable string for MPEG audio layer (e.g. Layer 3).
+  pub fn layer_string(&self) -> String {
+    match &self.layer {
+      MP3Layer::Reserved => "Reserved".to_string(),
+      MP3Layer::Layer1 => "Layer 1".to_string(),
+      MP3Layer::Layer2 => "Layer 2".to_string(),
+      MP3Layer::Layer3 => "Layer 3".to_string(),
+      MP3Layer::Unknown => "Unknwon".to_string(),
+    }
+  }
+}
+
+/// Suitable for printing description of this format: Mpeg-1 - Layer 3.
+impl fmt::Debug for MPEG3Format {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{} - {}", self.version_string(), self.layer_string())
+  }
+}
+
+/// MPEG audio version.
+#[derive(Debug)]
+pub enum MPVersion {
+  Reserved,
+  MPEG1,
+  MPEG2,
+  MPEG2_5,
+  Unknown,
+}
+
+/// MPEG audio layer.
+#[derive(Debug)]
+pub enum MP3Layer {
+  Reserved,
+  Layer1,
+  Layer2,
+  Layer3,
+  Unknown,
+}
+
+//
+// MPEG4
+//
 
 /// MPEG-4 CodecFormat
 #[derive(Default, Debug)]
@@ -82,73 +164,11 @@ impl MPEG4AudioFormat {
   }
 }
 
-/// MPEG-3 Codec Format
-/// Representation of MPeg layers 1 - layers 3.
-pub struct MPEG3Format {
-  pub bitrate: u16,
-  pub sample_rate: u16,
-  pub version: MPVersion,
-  pub layer: MP3Layer,
-  pub duration: Duration,
-}
-
-/// Return a printable string for MPEG-3 version.
-impl MPEG3Format {
-  /// Version of MPEG audio.
-  pub fn version_string(&self) -> String {
-    match &self.version {
-      MPVersion::Reserved => "Reserved".to_string(),
-      MPVersion::MPEG1 => "Mpeg-1".to_string(),
-      MPVersion::MPEG2 => "Mpeg-2".to_string(),
-      MPVersion::MPEG2_5 => "Mpeg-2.5".to_string(),
-      MPVersion::Unknown => "Unknwon".to_string(),
-    }
-  }
-
-  /// Mpeg audio "layer". e.g. MPEG-2, Audio Layer 3.
-  pub fn layer_string(&self) -> String {
-    match &self.layer {
-      MP3Layer::Reserved => "Reserved".to_string(),
-      MP3Layer::Layer1 => "Layer-1".to_string(),
-      MP3Layer::Layer2 => "Layer-2".to_string(),
-      MP3Layer::Layer3 => "Layer-3".to_string(),
-      MP3Layer::Unknown => "Unknwon".to_string(),
-    }
-  }
-}
-
-/// Suitable for printing description of this format: Mpeg-1 - Layer 3.
-impl fmt::Debug for MPEG3Format {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{} - {}", self.version_string(), self.layer_string())
-  }
-}
-
-/// Version of Mpeg Audio.
-#[derive(Debug)]
-pub enum MPVersion {
-  Reserved,
-  MPEG1,
-  MPEG2,
-  MPEG2_5,
-  Unknown,
-}
-
-//// Layer of MPEG Audio.
-#[derive(Debug)]
-pub enum MP3Layer {
-  Reserved,
-  Layer1,
-  Layer2,
-  Layer3,
-  Unknown,
-}
-
 //
 // Format Specific Metadata
-///
+//
 
-/// Generalized access to audio meta-data provided by
+/// Generalized access to audio metadata provided by
 /// the underlying format. This can be thought of as a way
 /// to get access to metadata that isn't otherwise captured
 /// formally by the Track data structure.
@@ -162,6 +182,10 @@ pub enum FormatMetadata {
   /// Mpeg4 specific metadata.
   MP4(MPEG4Metadata),
 }
+
+//
+// FLAC
+//
 
 /// Flac Format Metadata
 ///
@@ -204,6 +228,10 @@ impl FlacMetadata {
     Ok(())
   }
 }
+
+//
+// ID3
+//
 
 /// ID3 Format Metadata
 #[derive(Debug, Default)]
@@ -271,6 +299,10 @@ impl ID3Metadata {
     Ok(())
   }
 }
+
+//
+// MPEG4
+//
 
 /// MPeg 4 Format Metadata
 ///
@@ -408,11 +440,11 @@ impl Track {
     }
   }
 }
-/// Read track(s) from a file or directory.
+/// Read track(s) and regular files from a file or directory.
 ///
-/// `path::PathBuf` provides the file or directory.
-/// The first returned `Vec` is files that are audio files and so have track data.
-/// The second `Vec` is a list of non audio files as `PathBuf`.
+/// `PathBuf` provides the file or directory.
+/// The first returned `Vec` are files that are audio files and so have track data.
+/// The second `Vec` is a list of non-audio files as `PathBuf`.
 pub fn files_from(
   p: path::PathBuf,
 ) -> std::result::Result<(Vec<Track>, Vec<path::PathBuf>), Box<dyn Error>> {
