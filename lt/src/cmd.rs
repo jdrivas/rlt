@@ -6,7 +6,7 @@ extern crate linefeed;
 extern crate structopt;
 
 use crate::display;
-use crate::run::{prompt_start_up, readloop, send_directory, PromptUpdate};
+use crate::run::{readloop, send_directory, PromptUpdate};
 use clap::AppSettings;
 
 // use chrono::Local;
@@ -140,8 +140,8 @@ fn strings_to_pathbuf(v: &[String]) -> PathBuf {
 pub fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
   // Prompt updates for readline loop.
   let (tx, rx) = mpsc::channel();
-  let tx1 = mpsc::Sender::clone(&tx);
-  prompt_start_up(tx);
+  // let tx1 = mpsc::Sender::clone(&tx);
+  // prompt_start_up(tx);
 
   match opt.subcmd {
     // Go into interactive mode.
@@ -163,11 +163,11 @@ pub fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error
       } else {
         None
       };
-      readloop(hp, tx1, rx)?;
+      readloop(hp, tx, rx)?;
       Ok(ParseResult::Exit)
     }
     // Just execute the given command.
-    RootSubcommand::InteractiveSubcommand(c) => parse_interactive(c, &tx1),
+    RootSubcommand::InteractiveSubcommand(c) => parse_interactive(c, &tx),
   }
 }
 

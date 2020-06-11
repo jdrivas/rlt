@@ -80,6 +80,10 @@ pub fn readloop(
     tx: mpsc::Sender<PromptUpdate>,
     rx: mpsc::Receiver<PromptUpdate>,
 ) -> Result<(), Box<dyn Error>> {
+    // Async prompt deamon.
+    let tx1 = mpsc::Sender::clone(&tx);
+    prompt_start_up(tx1);
+
     // Set up read loop.
     let rl = Arc::new(Interface::new("cli").unwrap());
     rl.set_completer(Arc::new(PathCompleter));
@@ -147,7 +151,7 @@ pub struct PromptUpdate {
 
 // const TIME_FMT: &str = "%a %b %e %Y %T";
 // TODO(jdr): Sunset this.
-pub fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
+fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
     thread::spawn(move || loop {
         send_directory(&tx);
         thread::sleep(Duration::from_millis(1000));
