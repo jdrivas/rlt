@@ -1,6 +1,10 @@
+//! List of known Mpeg4 boxes.
+
 use lt_macro::define_boxes;
 use std::fmt;
-// New
+
+/// Boxes are either a pure conatiner, a special container (has data),
+/// or not a conatiner.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ContainerType {
     Container,
@@ -8,9 +12,7 @@ pub enum ContainerType {
     NotContainer,
 }
 
-/// Box Specificaiton
-///
-/// BoxSpec identifies properties of a box and carrys the basic informaiton.
+/// A BoxSpec identifies properties of a box and carrys the basic informaiton.
 // TOD(jdr); do we really need to carry around bt_id?
 #[derive(PartialEq, Eq)]
 pub struct BoxSpec {
@@ -19,15 +21,15 @@ pub struct BoxSpec {
     pub full: bool,
 }
 
-/// Thanks to Mozilla and mp4parse for the thinking that went in to this.
-/// All mistakes and ugliness mine.
-/// But the Table of boxes was stolen from them (with my hackery to
-/// not have to write out the integers and just specify as four chcaracter codes).
-/// As was FourCC below, stolen from U32BE and their FourCC.
-
 /// Display a u32 as 4 byte character codes, taking into account
 /// the displayable copyright we expect and expclicitly converting
 /// to hex for anything else that's not ASCII as rust stringification defines it.
+///
+/// Thanks to Mozilla and mp4parse for the thinking that went in to this.
+/// All mistakes and ugliness mine.
+/// The Table of boxes was stolen from them (with my hackery to
+/// not have to write out the integers and just specify as four chcaracter codes).
+/// FourCC was borrowed from U32BE and their FourCC.
 pub struct FourCC(pub u32);
 
 impl std::fmt::Display for FourCC {
@@ -84,6 +86,7 @@ impl fmt::Debug for BoxSpec {
 macro_rules! def_boxes {
     ($($box_name:ident, $id:expr, $cc:literal, $container:expr, $full:expr, $comment_name:literal, $comment_path:literal;) * ) => {
 
+        /// An enumeration item for each of the known MPEG4 boxes, and an catch-all uknknown.
         #[derive(Debug,PartialEq, Eq)]
         pub enum BoxType {
             $($box_name(BoxSpec)), *,
@@ -96,7 +99,6 @@ macro_rules! def_boxes {
                 #[doc = $comment_path]
                 pub const $box_name: BoxType = BoxType::$box_name(BoxSpec{bt_id: $id, container: $container, full: $full});
             )*
-
 
         impl BoxType {
             pub fn spec(&self) -> &BoxSpec {

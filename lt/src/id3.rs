@@ -1,3 +1,4 @@
+//! Deprecated. Old MP3 interface.
 /*
 use crate::file::{Decoder, FileFormat};
 use crate::track;

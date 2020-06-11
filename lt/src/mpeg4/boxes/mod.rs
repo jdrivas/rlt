@@ -1,3 +1,4 @@
+//! Implementation and interface to the Box model for MPEG4.
 extern crate bytes;
 #[macro_use]
 pub mod box_types;
@@ -60,6 +61,7 @@ impl fmt::Debug for MP4Box<'_> {
     }
 }
 
+/// For FullBoxes the version and the flags value.
 #[derive(Debug, PartialEq, Eq)]
 pub struct VersionFlag {
     pub version: u8,

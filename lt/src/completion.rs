@@ -1,5 +1,5 @@
-/// Performs completion by searching for filenames matching the word prefix.
-/// Modified from the linefeed original for PathCompleter.
+//! Performs completion by searching for filenames matching the word prefix.
+//! Modified from the linefeed original for PathCompleter.
 extern crate linefeed;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
@@ -10,6 +10,7 @@ use linefeed::complete::{Completer, Completion, Suffix};
 use linefeed::prompter::Prompter;
 use linefeed::terminal::Terminal;
 
+/// Implelements a `linefeed::complete::Completer`, for completing file paths in interactive mode.
 pub struct PathCompleter;
 
 impl<Term: Terminal> Completer<Term> for PathCompleter {

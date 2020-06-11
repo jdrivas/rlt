@@ -1,3 +1,4 @@
+//! Implementation of MPEG4 metadata reading.
 pub mod boxes;
 pub mod find;
 // pub mod boxes::box_types;
@@ -14,6 +15,7 @@ use boxes::{ilst, mdia, read_box_size_type, stbl, MP4Buffer};
 use std::error::Error;
 use std::io::{Read, Seek};
 
+/// MPEG4 file model which includes data from an FTYP box.
 #[derive(Default, Debug)]
 pub struct Mpeg4 {
     brand: String,
@@ -84,6 +86,7 @@ impl file::Decoder for Mpeg4 {
 }
 
 impl Mpeg4 {
+    // TODO(jdr): Should update to accept a Wrtier instead of defaulting to stdout.
     /// Display the structure an MP4 buffer on stdout.
     /// This prints the Box Type followed by the size
     /// a designtation as of Simple, Full, and Container

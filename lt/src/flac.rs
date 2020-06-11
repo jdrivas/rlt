@@ -1,3 +1,5 @@
+//! Entrypoints integrated with Albums and Track into Flac metadata reading.
+//!
 use crate::file;
 use crate::file::FileFormat;
 use crate::track;
@@ -11,10 +13,14 @@ const DISCNUMBER: &str = "DISCNUMBER";
 // const VENDOR: &str = "VENDOR";
 const ALT_TOTALTRACKS: &str = "TRACKTOTAL";
 
+/// Flac file reader.
 #[derive(Default, Debug)]
 pub struct Flac;
 
 const FLAC_HEADER: &[u8] = b"fLaC";
+
+/// Looks at the first 4 bytes for the flac header "fLaC"
+/// and returns a `FileFormat::Flac` if found.
 pub fn identify(b: &[u8]) -> Option<FileFormat> {
     if b.len() >= 4 && &b[0..4] == FLAC_HEADER {
         Some(FileFormat::Flac(Flac {}))
@@ -24,8 +30,8 @@ pub fn identify(b: &[u8]) -> Option<FileFormat> {
 }
 
 const FORMAT_NAME: &str = "flac";
-
 impl file::Decoder for Flac {
+    /// Return the format name.
     fn name(&self) -> &str {
         FORMAT_NAME
     }

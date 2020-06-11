@@ -13,5 +13,6 @@ pub mod mp3;
 pub mod mp4;
 #[macro_use]
 pub mod mpeg4;
+pub mod run;
 pub mod track;
 pub mod wav;

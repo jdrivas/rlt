@@ -1,3 +1,4 @@
+//! Utilty functions to support MPEG4 display and use.
 use super::boxes;
 use box_types::{BoxType, ContainerType};
 use boxes::box_types;

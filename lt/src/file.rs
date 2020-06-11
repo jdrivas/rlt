@@ -1,3 +1,4 @@
+//! Model for audio file format that integrates specific readers and providing identification and other functions.
 use crate::flac;
 // use crate::id3;
 use crate::mp3;
@@ -10,11 +11,13 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path;
 
+/// Intended for implemenattions of file format readers to fill in `Track` data.
 pub trait Decoder {
     fn name(&self) -> &str;
     fn get_track(&mut self, r: impl Read + Seek) -> Result<Option<Track>, Box<dyn Error>>;
 }
 
+/// File formats supported.
 pub enum FileFormat {
     Flac(flac::Flac),
     MPEG4(mpeg4::Mpeg4),
@@ -87,6 +90,8 @@ pub fn identify(mut r: impl Read + Seek) -> Result<Option<FileFormat>, std::io::
     Ok(None)
 }
 
+/// Implements a generic function for display the structure of an audio file (e.g. MPEG4 boxes).
+/// Currently only works for MPEG4 files.
 pub fn display_structure(p: &path::PathBuf) -> Result<(), Box<dyn Error>> {
     let mut file = File::open(p.as_path())?;
     if let Some(ff) = identify(&mut file)? {

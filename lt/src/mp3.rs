@@ -1,3 +1,4 @@
+//! Entrypoints integrated with Albums and Track into MP3 metadata reading.
 use crate::file;
 use crate::track;
 use id3::Tag;
@@ -11,6 +12,7 @@ use std::time::Duration;
 use std::io::{Read, Seek, SeekFrom};
 // use std::path::PathBuf;
 
+/// MP3 file reader.
 #[derive(Default, Debug)]
 pub struct Mp3;
 
@@ -26,9 +28,12 @@ const ID3_HEADER: &[u8] = b"ID3";
 /// Identifies files that are MP3 files.
 /// Start with the ID3 variants, currently doesn't support much else.
 /// Buffer wants 3 bytes. It will return None if b.len() < 3.
+///
 /// References:
-/// http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm
-/// http://id3.org/Home
+///
+/// [http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm](http://mpgedit.org/mpgedit/mpeg_format/mpeghdr.htm)
+///
+/// [http://id3.org/Home](http://id3.org/Home)
 pub fn identify(b: &[u8]) -> Option<file::FileFormat> {
     if b.len() >= 3 && &b[0..3] == ID3_HEADER {
         Some(file::FileFormat::MP3(Mp3 {}))

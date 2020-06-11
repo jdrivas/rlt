@@ -1,3 +1,4 @@
+//! Reader functionality for Apple ilst generic metadata box and it's descendents.
 use crate::mpeg4::boxes::MP4Box;
 use bytes::buf::Buf;
 use std::fmt;

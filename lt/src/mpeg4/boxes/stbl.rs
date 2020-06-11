@@ -1,3 +1,4 @@
+//! Reader functionality for sample table and it's descendents.
 use crate::mpeg4::boxes::MP4Box;
 use crate::mpeg4::util;
 use bytes::buf::Buf;

@@ -1,3 +1,4 @@
+//! Find a specific type of box, in a specific hierarchical place in an MPEG4 stream.
 use crate::mpeg4::boxes;
 use boxes::box_types;
 use boxes::{MP4Box, MP4Buffer};

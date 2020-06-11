@@ -1,3 +1,5 @@
+//! Reader functionality for Media Data and it's header.
+
 use crate::mpeg4::boxes::MP4Box;
 use bytes::buf::Buf;
 

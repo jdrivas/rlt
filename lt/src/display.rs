@@ -1,4 +1,4 @@
-// extern crate chrono;
+//! Output for the application.
 extern crate num_format;
 use crate::album;
 use crate::file;
@@ -17,7 +17,7 @@ use std::time::Duration;
 
 const NONE_SHORT: &str = "-";
 
-/// lists files and audio files separately dispaying
+/// Display regular files and audio files, separately dispaying
 /// metadata of the audio file if found.
 pub fn list_files(mut p: PathBuf) -> Result<(), Box<dyn Error>> {
   if !p.exists() {
@@ -159,6 +159,8 @@ pub fn list_files(mut p: PathBuf) -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
+/// Prints a detailed description of an audio file, including listing
+/// all found metadata.
 pub fn describe_file(p: PathBuf) -> Result<(), Box<dyn Error>> {
   // Only do a single file at a time.
   if !p.is_file() {
@@ -194,6 +196,8 @@ fn print_te_list(v: Vec<Te>) {
   table.printstd();
 }
 
+/// Prints a detailed track description, including listing of all found
+/// metadata.
 fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
   let fsize = match tk.path.as_path().metadata() {
     Ok(md) => md.len().to_formatted_string(&Locale::en),
@@ -313,6 +317,9 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
   Ok(())
 }
 
+/// Prints the structure of an audio file (e.g. a list of boxtypes and sizes in order
+/// found in the file and intended based on box containment).
+/// Currently is only implemented for MPEG4 files.
 pub fn display_structure(p: PathBuf) -> Result<(), Box<dyn Error>> {
   if p.is_file() {}
   // let p = get_file_only_path(&fname)?;
@@ -322,6 +329,9 @@ pub fn display_structure(p: PathBuf) -> Result<(), Box<dyn Error>> {
 
 // TODO(jdr): Move most of this into a function, probably in file that reads and
 // uses identify to figure out which find to call.
+/// Displays an MPEG4 box based on a path like /moov/udta/ilst/trkn.
+/// Displays the Box information (type, size, container or not) and the data
+/// assocaited with the box.
 pub fn display_find_path(p: PathBuf, find_path: String) -> Result<(), Box<dyn Error>> {
   if !p.is_file() {
     return Err(Box::new(io::Error::new(
@@ -429,16 +439,3 @@ fn path_file_name(p: &PathBuf) -> String {
   }
   ps
 }
-
-// fn get_file_only_path(fname: &str) -> Result<PathBuf, Box<dyn Error>> {
-//   // Only do a single file at a time.
-//   let p = PathBuf::from(fname);
-//   if !p.as_path().is_file() {
-//     return Err(Box::new(io::Error::new(
-//       io::ErrorKind::Other,
-//       format!("{} is not a file.", p.as_path().display()),
-//     )));
-//   };
-
-//   Ok(p)
-// }

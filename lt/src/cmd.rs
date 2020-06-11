@@ -1,157 +1,127 @@
+//! The definition of the command line arguments for single and interactive use.
+//! This module includes the "grammar" defnition as well as functions to parse command lines.
+
 extern crate clap;
 extern crate linefeed;
 extern crate structopt;
 
-use crate::completion::PathCompleter;
 use crate::display;
+use crate::run::{prompt_start_up, readloop, send_directory, PromptUpdate};
 use clap::AppSettings;
 
 // use chrono::Local;
-// use linefeed::complete::PathCompleter;
-use linefeed::{Interface, ReadResult};
 
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
-use std::sync::{mpsc, Arc};
-use std::thread;
-
-use std::time::Duration;
+use std::sync::mpsc;
 use std::{error, fmt};
 use structopt::StructOpt;
 
-/// Configuration information for the application.
-pub struct Config {
-  /// Path for the history file. If None, then no history is kept.
-  pub history_path: Option<String>,
-}
-
-/// Top level interface to run the command and return an error.
-/// Run will parse the command line argument and run execute the appropriate command.
-/// If there are no commands run will assume and execute a list command on the current directory.
-/// If the command given is not a valid command, run will assume a list command
-/// on the first argument provided.
-pub fn run(c: Config) -> Result<(), Box<dyn Error>> {
-  match AppCmds::from_iter_safe(&env::args().collect::<Vec<String>>()[1..]) {
-    Ok(mut opt) => {
-      opt.history_path = c.history_path;
-      parse_app(opt).map(|_a| ())? // Eat the return and return an ok.
-    }
-    Err(e) => match e.kind {
-      // Bad command, try to run a List command.
-      clap::ErrorKind::MissingArgumentOrSubcommand | clap::ErrorKind::UnknownArgument => {
-        let p = if env::args().len() > 1 {
-          PathBuf::from(&env::args().nth(1).unwrap())
-        } else {
-          env::current_dir()?
-        };
-        if p.exists() {
-          parse_app(AppCmds {
-            history_path: None,
-            config: "".to_string(),
-            subcmd: RootSubcommand::InteractiveSubcommand(InteractiveCommands::List(FilePath {
-              path: vec![p.as_path().to_str().unwrap().to_string()],
-            })),
-          })?;
-        } else {
-          // File doesn't exist so say so and print help.
-          eprintln!("File not found: \"{}\"\n", p.as_path().display());
-          AppCmds::clap().write_long_help(&mut std::io::stderr())?;
-        }
-      }
-      // Not an knonw command, so print the error message.
-      _ => eprintln!("{:?}", e),
-    },
-  }
-
-  Ok(())
-}
-
 // Command Parse Tree definition.
 
+/// Definition of the top level of the commands, options, and configuration
+/// available from the command line.
 #[derive(Debug, StructOpt)]
 #[structopt(name = "cli", version = "0.0.1", setting(AppSettings::NoBinaryName))]
-struct AppCmds {
+pub struct AppCmds {
   #[structopt(skip)]
-  history_path: Option<String>,
+  pub history_path: Option<String>,
 
   /// File name for configuration.
   #[structopt(short = "c", long = "config", default_value = "cli.yaml")]
-  config: String,
+  pub config: String,
 
+  /// Commands available for the application.
   #[structopt(subcommand)]
-  subcmd: RootSubcommand,
+  pub subcmd: RootSubcommand,
 }
 
+/// Captures the interactive command (which only appears on the command line
+/// and also includes all other commands.
 #[derive(StructOpt, Debug)]
-enum RootSubcommand {
+pub enum RootSubcommand {
   /// Run in interactive mode
   Interactive(FilePath),
   #[structopt(flatten)]
   InteractiveSubcommand(InteractiveCommands),
 }
 
+/// Captures all commands and options avialable to interactive (and so command line).
 #[derive(StructOpt, Debug)]
 #[structopt(name = "cli", version = "0.0.1", setting(AppSettings::NoBinaryName))]
-struct ICmds {
+pub struct ICmds {
   /// File name for configuration.
   #[structopt(short = "c", long = "config", default_value = "cli.yaml")]
-  config: String,
+  pub config: String,
 
+  /// The actual Interactive Commands.
   #[structopt(subcommand)]
-  subcmd: InteractiveCommands,
+  pub subcmd: InteractiveCommands,
 }
 
+/// Interactive and so application command definitions.
 #[derive(StructOpt, Debug)]
-enum InteractiveCommands {
-  /// End the program
+pub enum InteractiveCommands {
+  /// End the program.
   #[structopt(name = "quit", alias = "exit")]
   Quit,
 
-  /// Find Files
+  /// Find and print structural elements of a file (e.g. Mpeg4 box details).
   #[structopt(name = "find")]
   Find(FindPath),
 
-  /// List files
+  /// List files in the provided directory.
   #[structopt(name = "list", alias = "ls")]
   List(FilePath),
 
-  /// Details on a track
+  /// Print details of a track.
   #[structopt(name = "describe")]
   Describe(FilePath),
 
-  /// List files
+  /// Print out the meta structure of the file (e.g. all Mpeg4 boxe types and sizes in order).
   #[structopt(name = "structure")]
   Structure(FilePath),
 
-  /// Change working directory
+  /// Change working directory.
   #[structopt(name = "cd")]
   CD(FilePath),
 }
 
+/// Abstracts an command argument for files,
+/// providing a meahanism to get a PathBuf.
 #[derive(StructOpt, Debug)]
-struct FilePath {
-  path: Vec<String>,
+pub struct FilePath {
+  pub path: Vec<String>,
 }
 
 impl FilePath {
-  fn path(&self) -> PathBuf {
+  /// Get a PathBuf for this FilePath.
+  // Since we never go back to a FilePath
+  // from a PatBuf this seemed easier than implementing
+  // Into meachinsm.
+  // TODO(jdr): revist, this probably should be an Into.
+  pub fn path(&self) -> PathBuf {
     strings_to_pathbuf(&self.path)
   }
 }
 
+/// Abstracts the find argument to get both the find specification e.g. /moov/udta/ilst/trkn,
+/// and the FilePath for file to be operating on.
 #[derive(StructOpt, Debug)]
-struct FindPath {
-  find_path: String,
-  file_path: Vec<String>,
+pub struct FindPath {
+  pub find_path: String,
+  pub file_path: Vec<String>,
 }
 
+/// Get a PathBuf for this FindPath
 impl FindPath {
-  fn file_path(&self) -> PathBuf {
+  pub fn file_path(&self) -> PathBuf {
     strings_to_pathbuf(&self.file_path)
   }
 }
 
+/// Take a string and create a PathBuf
 fn strings_to_pathbuf(v: &[String]) -> PathBuf {
   let mut s = v.join(" ");
   // Assume we mean the current directory.
@@ -163,11 +133,11 @@ fn strings_to_pathbuf(v: &[String]) -> PathBuf {
   PathBuf::from(s.replace("\\", ""))
 }
 
-// Parse and execute an AppCmds. This specifically sets up
-// the ability to run either a single command from InteractiveCmds
-// and return with a result, or to run an interactive loop
-// for commands from InteractiveCommands.
-fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
+/// Parse and execute an AppCmds. This specifically sets up
+/// the ability to run either a single command from InteractiveCmds
+/// and return with a result, or to run an interactive loop
+/// for commands from InteractiveCommands.
+pub fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
   // Prompt updates for readline loop.
   let (tx, rx) = mpsc::channel();
   let tx1 = mpsc::Sender::clone(&tx);
@@ -201,8 +171,9 @@ fn parse_app(opt: AppCmds) -> std::result::Result<ParseResult, Box<dyn Error>> {
   }
 }
 
-// Command implementation
-fn parse_interactive(
+/// Command implementation
+/// This maps InteractiveCommands into actions.
+pub fn parse_interactive(
   cmd: InteractiveCommands,
   tx: &mpsc::Sender<PromptUpdate>,
 ) -> Result<ParseResult, Box<dyn Error>> {
@@ -240,11 +211,14 @@ fn parse_interactive(
 
 // pub type Result<T> = std::result::Result<T, ParseError>;
 
-enum ParseResult {
+/// Captures the state of a succesfull parse.
+/// Specifically noting if its time to exit succesfully.
+pub enum ParseResult {
   Complete,
   Exit,
 }
 
+/// Capture Clap and IO errorrs as they happen in the parsing.
 #[derive(Debug)]
 pub enum ParseError {
   Clap(clap::Error),
@@ -284,105 +258,5 @@ impl From<clap::Error> for ParseError {
 impl From<std::io::Error> for ParseError {
   fn from(err: std::io::Error) -> ParseError {
     ParseError::IO(err)
-  }
-}
-
-// Interactive readloop functionality for ICmds.
-// This supports an asynchronous prompt update capability.
-
-// TODO(Jdr) Need to automatically udpate
-// based on current directory.
-fn readloop(
-  history_path: Option<PathBuf>,
-  tx: mpsc::Sender<PromptUpdate>,
-  rx: mpsc::Receiver<PromptUpdate>,
-) -> Result<(), Box<dyn Error>> {
-  // Set up read loop.
-
-  let rl = Arc::new(Interface::new("cli").unwrap());
-  rl.set_completer(Arc::new(PathCompleter));
-  if let Err(e) = rl.set_prompt("cli> ") {
-    eprintln!("Couldn't set prompt: {}", e)
-  }
-
-  if let Some(path) = history_path.as_ref() {
-    if let Err(e) = rl.load_history(&path) {
-      eprintln!("Failed to load history file {:?}: {}", path, e);
-    }
-  }
-
-  loop {
-    // Check for propt uppdate.
-    let mut p = None;
-    for pm in rx.try_iter() {
-      p = Some(pm);
-    }
-
-    if let Some(p) = p {
-      if let Err(e) = rl.set_prompt(&p.new_prompt) {
-        eprintln!("Failed to set prompt: {:?}", e)
-      }
-    };
-
-    let rl_res = rl.read_line_step(Some(Duration::from_millis(1000)));
-
-    // process result if there is one.
-    match rl_res {
-      Ok(Some(ReadResult::Input(line))) => {
-        let words: Vec<&str> = line.split_whitespace().collect();
-        rl.add_history_unique(words.join(" "));
-        match ICmds::from_iter_safe(words) {
-          Ok(opt) => match parse_interactive(opt.subcmd, &tx) {
-            Ok(ParseResult::Complete) => continue,
-            Ok(ParseResult::Exit) => {
-              if let Some(path) = history_path.as_ref() {
-                if let Err(e) = rl.save_history(path) {
-                  eprintln!("Failed to save history file: {:?} - {}", path, e);
-                }
-              }
-              break;
-            }
-            Err(e) => eprintln!("RL-PI: {}", e),
-          },
-          Err(e) => eprintln!("RL - match: {}", e),
-        }
-      }
-      // Check for a prompt update.
-      Ok(None) => continue,
-      Ok(Some(ReadResult::Eof)) => println!("Use the \"quit\" command to exit the applicaiton."),
-      Ok(Some(ReadResult::Signal(s))) => println!("Caught signal: {:?}", s),
-      Err(e) => eprintln!("Failed on readline: {:?}", e),
-    };
-  }
-  Ok(())
-}
-
-struct PromptUpdate {
-  new_prompt: String,
-}
-
-// const TIME_FMT: &str = "%a %b %e %Y %T";
-fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
-  thread::spawn(move || loop {
-    send_directory(&tx);
-    thread::sleep(Duration::from_millis(1000));
-  });
-}
-
-fn send_directory(tx: &mpsc::Sender<PromptUpdate>) {
-  let cd = match env::current_dir() {
-    Ok(p) => p,
-    Err(_) => PathBuf::from("Unknown)"),
-  };
-  // let cd;
-  // if let Ok(p) = env::current_dir() {
-  //   cd = p.as_path().to_owned()
-  // } else {
-  //   cd = path::Path::new("Unknown").to_owned();
-  // }
-  if let Err(e) = tx.send(PromptUpdate {
-    new_prompt: format!("cli <{}> ", cd.display()),
-  }) {
-    eprintln!("Failed to send a new prompt: {:?}", e)
   }
 }

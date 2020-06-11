@@ -1,3 +1,4 @@
+//! Deprecated - Old MPEG4 interface.
 extern crate bytes;
 extern crate lazy_static;
 // use lazy_static;

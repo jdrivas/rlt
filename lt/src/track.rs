@@ -1,3 +1,5 @@
+//! The model for an audio track generally, and as a function of file and audio codec format.
+
 use crate::file;
 use crate::file::{Decoder, FileFormat};
 
@@ -32,14 +34,20 @@ pub enum CodecFormat {
 /// Basic PCM sample data.
 #[derive(Default, Debug)]
 pub struct PCMFormat {
-  pub sample_rate: u32, // Hertz
+  /// Sampme rate in hertZ
+  pub sample_rate: u32,
+  /// Channels of audio (eg. 1 for mono, 2 for stereo etc.).
   pub channels: u8,
+  /// Sample size (e.g. 16, 24, 48).
   pub bits_per_sample: u16,
+  /// Numnber of samples for this track.
+  /// Used to compute duraiton.
   pub total_samples: u64,
 }
 
 const BILLION: u64 = 1_000_000_000;
 impl PCMFormat {
+  /// Length of time for the track.
   pub fn duration(&self) -> Duration {
     // Compute duration
     let mut ns = self.total_samples as f64 / self.sample_rate as f64;
@@ -51,17 +59,22 @@ impl PCMFormat {
 /// MPEG-4 CodecFormat
 #[derive(Default, Debug)]
 pub struct MPEG4AudioFormat {
-  pub sr: u32, // 16.16 fixed point value
+  /// 16.16 fixed point sample rate.
+  pub sr: u32,
+  /// Channels of audio (eg. 1 for mono, 2 for stereo etc.).
   pub channels: u8,
+  /// Sample size (e.g. 16, 24, 48).
   pub bits_per_sample: u16,
+  /// Numnber of samples for this track.
   pub total_samples: u64,
 }
 
 impl MPEG4AudioFormat {
+  /// Samples per second.
   pub fn sample_rate(&self) -> f64 {
     f64::from(self.sr >> 16)
   }
-
+  /// Legnth of the track
   pub fn duration(&self) -> Duration {
     let mut ns = self.total_samples as f64 / self.sample_rate();
     ns *= BILLION as f64;
@@ -81,6 +94,7 @@ pub struct MPEG3Format {
 
 /// Return a printable string for MPEG-3 version.
 impl MPEG3Format {
+  /// Version of MPEG audio.
   pub fn version_string(&self) -> String {
     match &self.version {
       MPVersion::Reserved => "Reserved".to_string(),
@@ -91,6 +105,7 @@ impl MPEG3Format {
     }
   }
 
+  /// Mpeg audio "layer". e.g. MPEG-2, Audio Layer 3.
   pub fn layer_string(&self) -> String {
     match &self.layer {
       MP3Layer::Reserved => "Reserved".to_string(),
@@ -102,12 +117,14 @@ impl MPEG3Format {
   }
 }
 
+/// Suitable for printing description of this format: Mpeg-1 - Layer 3.
 impl fmt::Debug for MPEG3Format {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{} - {}", self.version_string(), self.layer_string())
   }
 }
 
+/// Version of Mpeg Audio.
 #[derive(Debug)]
 pub enum MPVersion {
   Reserved,
@@ -117,6 +134,7 @@ pub enum MPVersion {
   Unknown,
 }
 
+//// Layer of MPEG Audio.
 #[derive(Debug)]
 pub enum MP3Layer {
   Reserved,
@@ -130,22 +148,34 @@ pub enum MP3Layer {
 // Format Specific Metadata
 ///
 
-/// Full metadata storage access
+/// Generalized access to audio meta-data provided by
+/// the underlying format. This can be thought of as a way
+/// to get access to metadata that isn't otherwise captured
+/// formally by the Track data structure.
+/// This also allows for a bit of evolution in the formats as they grow.
 #[derive(Debug)]
 pub enum FormatMetadata {
+  /// Flac specific metadata
   Flac(FlacMetadata),
+  /// ID3 metadata format.
   ID3(ID3Metadata),
+  /// Mpeg4 specific metadata.
   MP4(MPEG4Metadata),
 }
 
 /// Flac Format Metadata
+///
+/// Flac metadata is supplied with Key/Values where mutiple
+/// strings can be supplied for the same key (though usually that's
+/// not the case - it's just a single string).
 #[derive(Debug, Default)]
 pub struct FlacMetadata {
+  /// Flac metadata is stored as comments and key/value pairs.
   pub comments: HashMap<String, Vec<String>>,
 }
 
-/// Print the metadata, as key values in columns, to a writer.
 impl FlacMetadata {
+  /// Print the metadata, as key values in columns, to a writer.
   pub fn print(&self, mut w: impl Write) -> Result<(), std::io::Error> {
     println!("Metadata");
     if !self.comments.is_empty() {
@@ -178,11 +208,14 @@ impl FlacMetadata {
 /// ID3 Format Metadata
 #[derive(Debug, Default)]
 pub struct ID3Metadata {
+  /// Text metadata is where metdata is usually stored.bool
   pub text: HashMap<String, Vec<String>>,
+  /// Comment metadata is stored by key with values: Languages, Description, Text.
   pub comments: HashMap<String, Vec<(String, String, String)>>,
 }
 
 impl ID3Metadata {
+  /// Print the metadata, as key values in columns, to a writer.
   pub fn print(&self, mut w: impl Write) -> Result<(), std::io::Error> {
     println!("Metadata");
 
@@ -240,14 +273,38 @@ impl ID3Metadata {
 }
 
 /// MPeg 4 Format Metadata
+///
+/// This is pulled from the ilst box found: /moov/udta/ilist.
+/// The structure is
+/// ```nothing
+/// ilst
+///     <key>
+///         data
+/// ```
+/// Where the `<key>` is the four character code for the metadata type e.g. trkn for "track number".
+///
+/// The data box also has a type associated with it.
+///
+/// Here the data is stored in a `HashMap` with the `key` represtend in a string as the key.
+/// The values are depened on the identified type of the data.
+///
+/// Type == 1, is stored as &[u8] which is converted to a string in the text `HashMap`.
+///
+/// Type == 21, is stored a single byte, in the byte `HashMap`.
+///
+/// Types: 0 (Implicit), 13(JPEG), 14(PMG) are not stored at the moment.
+///
 #[derive(Debug, Default)]
 pub struct MPEG4Metadata {
+  /// Stored text type data as string, keyed off of the enclosing box's 4 character code e.g. `b"trkn"`.
   pub text: HashMap<String, String>,
   // pub data: HashMap<String, [u8]>, TODO(jdr): Figure out how to capture Data typed metadata.
+  /// Stored single byte data as a single byte keyed on the enclsoing box's 4 character code e.g. `b"cpil"`.
   pub byte: HashMap<String, u8>,
 }
 
 impl MPEG4Metadata {
+  /// Print the metadata, as key values in columns, to a writer.
   pub fn print(&self, mut w: impl Write) -> Result<(), std::io::Error> {
     println!("Metadata");
     if !self.text.is_empty() || !self.byte.is_empty() {
@@ -282,20 +339,34 @@ impl MPEG4Metadata {
 
 // Track Definition
 
+/// Captures general and codec specific metadata for a single audio track.
 // #[derive(Default, Debug)]
 #[derive(Debug)]
 pub struct Track {
+  /// File location.
   pub path: path::PathBuf,
+  /// File Format (as opposed to data format (e.g. Mpeg4 File with Flac codec data).
   pub file_format: Option<String>,
+  /// Track title.
   pub title: Option<String>,
+  /// Artist name.
   pub artist: Option<String>,
+  /// Album title.
   pub album: Option<String>,
+  /// Track number out of a total number of tracks.
   pub track_number: Option<u32>,
+  /// Total number of tracks for the album/collection this track is a part of.
   pub track_total: Option<u32>,
+  /// The CD that this track appears on.
   pub disk_number: Option<u32>,
+  /// The total number of CDs for the album that this track appears on.
   pub disk_total: Option<u32>,
   // pub comments: HashMap<String, Vec<String>>,
+  /// Codec format details.
   pub format: Option<CodecFormat>,
+  /// A collection of format specific metadata provided as key value pairs
+  /// to capture metadata not otherwise provided by the Track and assocaited
+  /// structs and enums.
   pub metadata: Option<FormatMetadata>,
 }
 
@@ -322,6 +393,8 @@ impl Default for Track {
 const EMPTY_SMALL: &str = "-";
 
 impl Track {
+  /// Utilitiy function to return a string that
+  /// captures tracks as: " 1 of 09".
   pub fn tracks_display(&self) -> String {
     match self.track_total {
       Some(tt) => match self.track_number {
@@ -336,6 +409,10 @@ impl Track {
   }
 }
 /// Read track(s) from a file or directory.
+///
+/// `path::PathBuf` provides the file or directory.
+/// The first returned `Vec` is files that are audio files and so have track data.
+/// The second `Vec` is a list of non audio files as `PathBuf`.
 pub fn files_from(
   p: path::PathBuf,
 ) -> std::result::Result<(Vec<Track>, Vec<path::PathBuf>), Box<dyn Error>> {
