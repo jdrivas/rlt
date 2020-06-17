@@ -2,3 +2,4 @@
 /test_audio
 .lt_history
 *.dat
+.DS_Store
