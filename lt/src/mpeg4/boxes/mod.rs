@@ -8,13 +8,34 @@ pub mod stbl;
 
 use box_types::{BoxType, ContainerType};
 use bytes::buf::Buf;
+// use std::error::Error;
 use std::fmt;
+// use std::io::{Read, Seek};
+
+/// Box header is [size] + [type (four character code)]
+pub const BOX_HEADER_SIZE: usize = 8;
+/// Full box [size] + [type] + [version/flags]
+pub const FULL_BOX_HEADER_SIZE: usize = BOX_HEADER_SIZE + 4;
 
 /// Holds the buffer and supports
 /// iteration over the MP4Boxes
 /// in the buffer.
+// TODO(jdr): This probably wants a rethink.
 pub struct MP4Buffer<'a, 'b> {
     pub buf: &'b mut &'a [u8],
+}
+
+impl<'a> std::iter::Iterator for MP4Buffer<'a, '_> {
+    type Item = MP4Box<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.buf.is_empty() {
+            return None;
+        }
+        // println!("Next: Buf len: {:#0x}", self.buf.len());
+        let b = read_box_header(self.buf);
+        // println!("Next end: Buff len = {:#0x}", self.buf.len());
+        Some(b)
+    }
 }
 
 /// Holds header information from the box
@@ -28,23 +49,10 @@ pub struct MP4Box<'a> {
     pub version_flag: Option<VersionFlag>,
 }
 
-// read calls the function provided and sending it this box.
 impl<'a> MP4Box<'a> {
+    // read calls the function provided and sending it this box.
     pub fn read(&mut self, rf: &mut impl FnMut(&mut MP4Box<'a>)) {
         rf(self);
-    }
-}
-
-impl<'a> std::iter::Iterator for MP4Buffer<'a, '_> {
-    type Item = MP4Box<'a>;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.buf.is_empty() {
-            return None;
-        }
-        // println!("Next: Buf len: {:#0x}", self.buf.len());
-        let b = read_box_header(self.buf);
-        // println!("Next end: Buff len = {:#0x}", self.buf.len());
-        Some(b)
     }
 }
 
@@ -92,9 +100,18 @@ pub fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
     // s = 1 byte of size; 4 total.
     // t = 1 byte of box type; 4 total.
     // println!("Bufferhead {:x?}", &buf[0..8]);
+    let rest = &buf[0..buf.len()];
     let mut read: usize = 0;
     let (r, s, bt) = read_box_size_type(buf);
     read += r;
+
+    // println!(
+    //     "Creating rest. Buf.len() {}, Box size: {}, Bytes Read: {}",
+    //     buf.len(),
+    //     s,
+    //     read
+    // );
+    let rest = &rest[0..(s as usize)];
 
     // println!("Read box header: {} [{}/0x{:0x?}]", FourCC(bt), s, s);
     let box_type = BoxType::from(bt);
@@ -111,14 +128,6 @@ pub fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
         None
     };
 
-    // Buffer not read yet.
-    // println!(
-    //     "Creating rest. Buf.len() {}, Box size: {}, Bytes Read: {}",
-    //     buf.len(),
-    //     s,
-    //     read
-    // );
-    let rest = &buf[0..(s as usize - read)];
     // println!("\tRest len: {}", rest.len());
 
     if let ContainerType::Special(skip) = box_spec.container {
@@ -187,7 +196,7 @@ pub struct FtypBox<'a> {
 }
 
 // TODO(jdr): Consdier changing all of
-// the argumetns but buff to options.
+// the arguments but buff to options.
 // The ideas is to only read the values
 // that you have to. This will put tests
 // for each option value in front of every read.

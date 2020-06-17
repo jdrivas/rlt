@@ -88,32 +88,38 @@ pub fn find_box<'a>(path: &str, mut b: &'a [u8]) -> Option<MP4Box<'a>> {
     None
 }
 
-#[test]
-fn test_find_box() {
-    use std::fs::File;
-    use std::io::Read;
+#[cfg(test)]
+mod tests {
 
-    let f = "/Volumes/London Backups/Itunes_Library/The Beatles/Abbey Road/01 Come Together.m4a";
-    let mut file = File::open(f).unwrap();
-    let mut vbuf = Vec::<u8>::new();
-    let _n = file.read_to_end(&mut vbuf);
-    let buf = vbuf.as_slice();
+    use super::*;
+    #[test]
+    fn test_find_box() {
+        use std::fs::File;
+        use std::io::Read;
 
-    let mut bx = find_box("/ftyp", buf).unwrap();
-    assert_eq!(bx.box_type, box_types::FTYP);
+        let f =
+            "/Volumes/London Backups/Itunes_Library/The Beatles/Abbey Road/01 Come Together.m4a";
+        let mut file = File::open(f).unwrap();
+        let mut vbuf = Vec::<u8>::new();
+        let _n = file.read_to_end(&mut vbuf);
+        let buf = vbuf.as_slice();
 
-    // Note, that at least currrently, the
-    // semantic meaning in the / is merely
-    // as a spearator between box names
-    // and that find just looks for that
-    // sequence of boxes with any number of
-    // other boxes in between.
-    bx = find_box("/ftyp/moov", buf).unwrap();
-    assert_eq!(bx.box_type, box_types::MOOV);
+        let mut bx = find_box("/ftyp", buf).unwrap();
+        assert_eq!(bx.box_type, box_types::FTYP);
 
-    bx = find_box("/moov/trak", buf).unwrap();
-    assert_eq!(bx.box_type, box_types::TRAK);
+        // Note, that at least currrently, the
+        // semantic meaning in the / is merely
+        // as a spearator between box names
+        // and that find just looks for that
+        // sequence of boxes with any number of
+        // other boxes in between.
+        bx = find_box("/ftyp/moov", buf).unwrap();
+        assert_eq!(bx.box_type, box_types::MOOV);
 
-    bx = find_box("trak/tkhd", buf).unwrap();
-    assert_eq!(bx.box_type, box_types::TKHD);
+        bx = find_box("/moov/trak", buf).unwrap();
+        assert_eq!(bx.box_type, box_types::TRAK);
+
+        bx = find_box("trak/tkhd", buf).unwrap();
+        assert_eq!(bx.box_type, box_types::TKHD);
+    }
 }

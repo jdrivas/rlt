@@ -59,13 +59,7 @@ impl file::Decoder for Mpeg4 {
     }
 
     /// Fill a track assumed to be in MPEG4 format from the provider Reed + Seek.
-    fn get_track(
-        &mut self,
-        mut r: impl Read + Seek,
-    ) -> Result<Option<track::Track>, Box<dyn Error>> {
-        let mut vbuf = Vec::<u8>::new();
-        let _n = r.read_to_end(&mut vbuf);
-        let buf = vbuf.as_slice();
+    fn get_track(&mut self, r: impl Read + Seek) -> Result<Option<track::Track>, Box<dyn Error>> {
         let mut tk = track::Track {
             ..Default::default()
         };
@@ -77,7 +71,7 @@ impl file::Decoder for Mpeg4 {
         }));
 
         println!("File type: {:?}", self);
-        read_track(buf, &mut tk);
+        read_track(r, &mut tk)?;
         println!("Track: {:?}", &tk.title);
         println!();
 
@@ -96,9 +90,11 @@ impl Mpeg4 {
     pub fn display_structure(&self, mut r: impl Read + Seek) -> Result<(), Box<dyn Error>> {
         let mut vbuf = Vec::<u8>::new();
         let _n = r.read_to_end(&mut vbuf)?;
-        let buf = vbuf.as_slice();
-        let b: &mut &[u8] = &mut &(*buf);
-        let boxes = MP4Buffer { buf: b };
+        let boxes = MP4Buffer {
+            buf: &mut vbuf.as_slice(),
+        };
+
+        // let boxes = MP4Buffer::read_from(r)?;
 
         // let mut l = LevelStack::new(boxes.buf.len());
         let mut l = LevelStack::new();
@@ -114,45 +110,37 @@ impl Mpeg4 {
             );
 
             // Implement indenting with the level stack.
-            // Can't put the tabs.push into the update with
-            // call because we can't have two separate mutable
-            // references to tabs 'live' at the same time.
-            if b.box_type.spec().container != ContainerType::NotContainer {
-                // if let Some(spec) = b.box_type.spec() {
-                //     if spec.container != ContainerType::NotContainer {
+            if b.box_type.is_container() {
                 tabs.push('\t');
-                // }
             }
-
-            // println!("Adding box: {:?} to {:?}", b, l);
             l.add_box(b);
-            while l.complete() {
+            l.check_and_complete_with(|l| {
                 tabs.pop();
                 if l.len() > 1 {
                     println!("{}<{}>", tabs, l.top().unwrap().box_type.four_cc());
                 }
-                l.pop();
-                if l.is_empty() {
-                    break;
-                }
-            }
+            })
         }
         Ok(())
     }
 }
 
-fn read_track(buf: &[u8], mut tk: &mut track::Track) {
+fn read_track(mut r: impl Read + Seek, mut tk: &mut track::Track) -> Result<(), Box<dyn Error>> {
+    let mut vbuf = Vec::<u8>::new();
+    let _n = r.read_to_end(&mut vbuf)?;
+    let buf = vbuf.as_slice();
     let b: &mut &[u8] = &mut &(*buf);
     let boxes = MP4Buffer { buf: b };
-    let mut ls = LevelStack::new();
 
     // Visiting each box will read the header of the box
     // and if it's a full box the version/flags.
     // Box data itself is only read by calling funtions
     // in the read_box_for_track function.
+    let mut ls = LevelStack::new();
     for b in boxes {
         read_box_for_track(&mut tk, &mut ls, b);
     }
+    Ok(())
 }
 
 fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b: boxes::MP4Box) {
@@ -247,273 +235,6 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
         }
         _ => (),
     }
-    // Update the path with this box.
-    // path.update(b);
-    path.add_box(b);
-    while path.complete() {
-        path.pop();
-        if path.is_empty() {
-            break;
-        }
-    }
+
+    path.update(b);
 }
-
-/*
-fn get_track_reader<'a>(
-    tk: &'a mut track::Track,
-    bsize: usize,
-    path: &'a mut LevelStack,
-) -> impl FnMut(&mut boxes::MP4Box<'a>) {
-    // let mut path = LevelStack::new(bsize);
-    move |b: &mut boxes::MP4Box| {
-        let format;
-        if let track::CodecFormat::MPEG4(f) = tk.format.as_mut().unwrap() {
-            format = f;
-        } else {
-            panic!("CodecFormat not attached to track.");
-        }
-
-        let md: &mut track::MPEG4Metadata;
-        if let track::FormatMetadata::MP4(f) = tk.metadata.as_mut().unwrap() {
-            md = f;
-        } else {
-            panic!("Metadata not attached to track.")
-        }
-
-        match b.box_type {
-            box_types::DATA => {
-                let db = ilst::get_data_box(b);
-
-                // This is used in the data box read as it's
-                // the previous box type (direct ilist child e.g. TRK ) that determines
-                // the key for the metadata.
-                let bt = path.top().unwrap().box_type;
-                match db {
-                    // if let DataBoxContent::Text(v) = db {
-                    ilst::DataBoxContent::Text(v) => {
-                        let val = String::from_utf8_lossy(v).to_string();
-
-                        // Insert all the string pairs into the general metadata.
-                        md.text.insert(bt.code_string(), val.clone());
-
-                        // Then capture the specifics based on
-                        // the box previous ilst box type.
-                        match bt {
-                            box_types::XALB => tk.album = Some(val),
-                            box_types::XNAM => tk.title = Some(val),
-                            box_types::XART | box_types::XARTC | box_types::AART => tk.artist = Some(val),
-                            _ => (),
-                        }
-                    }
-                    ilst::DataBoxContent::Data(v) => match path.top().unwrap().box_type {
-                        box_types::TRKN => {
-                            tk.track_number = Some(u16::from_be_bytes([v[2], v[3]]) as u32);
-                            tk.track_total = Some(u16::from_be_bytes([v[4], v[5]]) as u32);
-                        }
-                        box_types::DISK => {
-                            tk.disk_number = Some(u16::from_be_bytes([v[2], v[3]]) as u32);
-                            tk.disk_total = Some(u16::from_be_bytes([v[4], v[5]]) as u32);
-                        }
-                        _ => (),
-                    },
-                    ilst::DataBoxContent::Byte(v) => {
-                        // TODO(jdr): Consider adding a text translation.
-                        md.byte.insert(bt.code_string(), v); // TOOO(jdr): Do we want to change the Track Metadata to tak str().
-                    }
-                }
-            }
-            box_types::STSD => {
-                let mut channels: u16 = 0;
-                let mut fmt: &mut [u8; 4] = &mut [0; 4];
-                stbl::get_short_audio_stsd(
-                    b,
-                    &mut fmt,
-                    &mut channels,
-                    &mut format.bits_per_sample,
-                    &mut format.sr,
-                );
-                format.channels = channels as u8;
-
-                // TODO(jdr): This might be better obtained from somewhere else.
-                // e.g. FTYP.
-                tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
-            }
-            box_types::MDHD => {
-                let mut creation: u64 = 0;
-                let mut modification: u64 = 0;
-                let mut timescale: u32 = 0;
-                let mut language: u16 = 0;
-                mdia::get_mdhd(
-                    b,
-                    &mut creation,
-                    &mut modification,
-                    &mut timescale,
-                    &mut format.total_samples,
-                    &mut language,
-                );
-            }
-            _ => (),
-        }
-        // Update the path with this box.
-        // path.update(b);
-        path.add_box(b);
-        path.check_and_complete();
-    }
-}
-
-*/
-// fn get_track_reader<'a>(
-//     tk: &'a mut track::Track,
-//     bsize: usize,
-//     path: &'a mut LevelStack,
-// ) -> impl FnMut(&mut boxes::MP4Box<'a>) {
-//     // let mut path = LevelStack::new(bsize);
-//     move |b: &mut boxes::MP4Box| {
-//         let format;
-//         if let track::CodecFormat::MPEG4(f) = tk.format.as_mut().unwrap() {
-//             format = f;
-//         } else {
-//             panic!("CodecFormat not attached to track.");
-//         }
-
-//         let md: &mut track::MPEG4Metadata;
-//         if let track::FormatMetadata::MP4(f) = tk.metadata.as_mut().unwrap() {
-//             md = f;
-//         } else {
-//             panic!("Metadata not attached to track.")
-//         }
-
-//         match b.box_type {
-//             box_types::DATA => {
-//                 let db = ilst::get_data_box(b);
-
-//                 // This is used in the data box read as it's
-//                 // the previous box type (direct ilist child e.g. TRK ) that determines
-//                 // the key for the metadata.
-//                 let bt = path.top().unwrap().box_type;
-//                 match db {
-//                     // if let DataBoxContent::Text(v) = db {
-//                     ilst::DataBoxContent::Text(v) => {
-//                         let val = String::from_utf8_lossy(v).to_string();
-
-//                         // Insert all the string pairs into the general metadata.
-//                         md.text.insert(bt.code_string(), val.clone());
-
-//                         // Then capture the specifics based on
-//                         // the box previous ilst box type.
-//                         match bt {
-//                             box_types::XALB => tk.album = Some(val),
-//                             box_types::XNAM => tk.title = Some(val),
-//                             box_types::XART | box_types::XARTC | box_types::AART => tk.artist = Some(val),
-//                             _ => (),
-//                         }
-//                     }
-//                     ilst::DataBoxContent::Data(v) => match path.top().unwrap().box_type {
-//                         box_types::TRKN => {
-//                             tk.track_number = Some(u16::from_be_bytes([v[2], v[3]]) as u32);
-//                             tk.track_total = Some(u16::from_be_bytes([v[4], v[5]]) as u32);
-//                         }
-//                         box_types::DISK => {
-//                             tk.disk_number = Some(u16::from_be_bytes([v[2], v[3]]) as u32);
-//                             tk.disk_total = Some(u16::from_be_bytes([v[4], v[5]]) as u32);
-//                         }
-//                         _ => (),
-//                     },
-//                     ilst::DataBoxContent::Byte(v) => {
-//                         // TODO(jdr): Consider adding a text translation.
-//                         md.byte.insert(bt.code_string(), v); // TOOO(jdr): Do we want to change the Track Metadata to tak str().
-//                     }
-//                 }
-//             }
-//             box_types::STSD => {
-//                 let mut channels: u16 = 0;
-//                 let mut fmt: &mut [u8; 4] = &mut [0; 4];
-//                 stbl::get_short_audio_stsd(
-//                     b,
-//                     &mut fmt,
-//                     &mut channels,
-//                     &mut format.bits_per_sample,
-//                     &mut format.sr,
-//                 );
-//                 format.channels = channels as u8;
-
-//                 // TODO(jdr): This might be better obtained from somewhere else.
-//                 // e.g. FTYP.
-//                 tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
-//             }
-//             box_types::MDHD => {
-//                 let mut creation: u64 = 0;
-//                 let mut modification: u64 = 0;
-//                 let mut timescale: u32 = 0;
-//                 let mut language: u16 = 0;
-//                 mdia::get_mdhd(
-//                     b,
-//                     &mut creation,
-//                     &mut modification,
-//                     &mut timescale,
-//                     &mut format.total_samples,
-//                     &mut language,
-//                 );
-//             }
-//             _ => (),
-//         }
-//         // Update the path with this box.
-//         // path.update(b);
-//         path.add_box(b);
-//         path.check_and_complete();
-//     }
-// }
-
-// fn read_buf(buf: &[u8]) -> Result<(), Box<dyn Error>> {
-//     let b: &mut &[u8] = &mut &(*buf);
-//     let mut boxes = MP4Buffer { buf: b };
-//     let mut bx = FtypBox {
-//         brand: &[][..],
-//         flags: 0,
-//         version: 0,
-//         compat_brands: Vec::<&[u8]>::new(),
-//     };
-
-//     let mut f = get_box_reader(&mut bx);
-//     for mut b in &mut boxes {
-//         b.read(&mut f);
-//         println!("{:?}", b);
-//     }
-//     Ok(())
-// }
-
-// // fn get_box_reader<'a>(bx: &'a mut FtypBox<'a>) -> impl FnMut(&mut &'a [u8], &[u8]) {
-// fn get_box_reader<'a, 'b>(bx: &'a mut FtypBox<'a>) -> &mut impl FnMut(&'a boxes::MP4Box<'b>) {
-//     // move |buf: &mut &[u8], kind: &[u8]| match kind {
-//     &mut move |b: &'a mut boxes::MP4Box<'b>| {
-//         // let mut buf = &mut &b.buf;
-//         match b.kind {
-//             b"ftyp" => {
-//                 get_ftyp_box_values(
-//                     &mut b.buf.clone(),
-//                     &mut bx.brand,
-//                     &mut bx.version,
-//                     &mut bx.flags,
-//                     &mut bx.compat_brands,
-//                 );
-//             }
-//             _ => (),
-//         }
-//     }
-// }
-// // fn fill(buf &mut &[u8], kind: &[u8]){
-//     let b = FtypBox {
-//         brand: &[][..],
-//         flags: 0,
-//         version: 0,
-//         compat_brands: Vec:<&u[8]>::new(),
-//     }
-// }
-
-// This can be turned into a hash table if we like.
-// fn get_box_type<'i>(kind: &[u8], buf: &mut &'i [u8]) -> (usize, Option<BoxType<'i>>) {
-//     match kind {
-//         b"ftyp" => get_ftyp_box(buf),
-//         _ => (0, None),
-//     }
-// }

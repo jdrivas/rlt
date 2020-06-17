@@ -1,6 +1,6 @@
 //! Reader functionality for Media Data and it's header.
 
-use crate::mpeg4::boxes::MP4Box;
+use crate::mpeg4::boxes::{MP4Box, FULL_BOX_HEADER_SIZE};
 use bytes::buf::Buf;
 
 /// Media Header Box
@@ -20,6 +20,8 @@ pub fn get_mdhd<'a>(
     duration: &'a mut u64,
     language: &'a mut u16,
 ) {
+    // Move past the fullbox header.
+    bx.buf.advance(FULL_BOX_HEADER_SIZE);
     if let Some(vf) = &bx.version_flag {
         if vf.version == 1 {
             *creation = bx.buf.get_u64();
@@ -34,6 +36,6 @@ pub fn get_mdhd<'a>(
         }
         *language = bx.buf.get_u16();
     } else {
-        panic!("mdhd didn't read a s BoxType::Full so had no version flag.");
+        panic!("mdhd didn't read a BoxType::Full so had no version flag.");
     }
 }

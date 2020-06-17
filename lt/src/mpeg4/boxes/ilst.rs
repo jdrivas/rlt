@@ -1,5 +1,5 @@
 //! Reader functionality for Apple ilst generic metadata box and it's descendents.
-use crate::mpeg4::boxes::MP4Box;
+use crate::mpeg4::boxes::{MP4Box, FULL_BOX_HEADER_SIZE};
 use bytes::buf::Buf;
 use std::fmt;
 
@@ -45,8 +45,12 @@ const BYTE_FLAG: u32 = 21;
 pub fn get_data_box<'a>(bx: &'a mut MP4Box) -> DataBoxContent<'a> {
     // println!("box: {:?}", bx);
     // println!("buff: {:x?}", bx.buf);
+
+    // Read past the full box (size, type, flags/version)
+    bx.buf.advance(FULL_BOX_HEADER_SIZE);
+
     // data box has a predfeined 0
-    bx.buf.get_u32();
+    bx.buf.get_u32(); //
     if let Some(vf) = &bx.version_flag {
         match vf.flag {
             TEXT_FLAG => DataBoxContent::Text(&bx.buf),

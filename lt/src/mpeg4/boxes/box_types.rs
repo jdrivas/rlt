@@ -1,5 +1,6 @@
 //! List of known Mpeg4 boxes.
 
+use crate::mpeg4::boxes::{BOX_HEADER_SIZE, FULL_BOX_HEADER_SIZE};
 use lt_macro::define_boxes;
 use std::fmt;
 
@@ -101,9 +102,27 @@ macro_rules! def_boxes {
             )*
 
         impl BoxType {
+
+            /// The ```BoxSpec`` for this ```BoxType``
             pub fn spec(&self) -> &BoxSpec {
                 match self {
                     $(BoxType::$box_name(s) |)* BoxType::Unknown(s) => s,
+                }
+            }
+
+            /// Determines if this BoxType references a container or not.
+            pub fn is_container(&self) -> bool {
+                self.spec().container != ContainerType::NotContainer
+            }
+
+            // The size of the header assocaited with the box in bytes.
+            /// For a simple box this is: 8 bytes = SIZE (4 bytes) + Four Character Code (4 bytes).
+            /// For a full box this is 12 bytes: Simple Box (8 bytes) + Version/Flags (4 bytes).
+            pub fn header_size(&self) -> usize {
+                if self.spec().full {
+                    FULL_BOX_HEADER_SIZE
+                } else {
+                    BOX_HEADER_SIZE
                 }
             }
 

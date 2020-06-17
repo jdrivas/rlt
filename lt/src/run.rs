@@ -158,7 +158,7 @@ fn prompt_start_up(tx: mpsc::Sender<PromptUpdate>) {
     });
 }
 
-/// Get's the current directory and sends an message
+/// Get's the current directory and sends a message
 /// to update the prompt string.
 pub fn send_directory(tx: &mpsc::Sender<PromptUpdate>) {
     let cd = match env::current_dir() {
