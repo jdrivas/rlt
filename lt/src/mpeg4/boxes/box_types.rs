@@ -217,6 +217,8 @@ define_boxes! {
     TKHD, b"tkhd",      ContainerType::NotContainer,   true,   "Track Header",                         "/movv/trak/tkhd";
     TRAK, b"trak",      ContainerType::Container,      false,  "Track Container",                      "/moov/trak";
     UDTA, b"udta",      ContainerType::Container,      false,  "User Data Container",                  "/moov/udta";
+    MDAT, b"mdat",      ContainerType::NotContainer,   false,  "Media Data Box",                       "/mdat";
+    FREE, b"free",      ContainerType::NotContainer,   false,  "Free Space",                           "/free";
 
     // Sample Table Boxes
     STBL, b"stbl",      ContainerType::Container,      false,  "Sample Table Box Container",           "/moov/trak/mdia/minf/stbl";
