@@ -59,7 +59,7 @@ impl std::fmt::Display for FourCC {
 impl std::fmt::Debug for FourCC {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match std::str::from_utf8(&self.0.to_be_bytes()) {
-            Ok(s) => write!(f, "{}", s),
+            Ok(s) => write!(f, "{:?}", s),
             Err(_) => write!(f, "{:x?}", self.0),
         }
     }
@@ -234,13 +234,17 @@ define_boxes! {
     ILST, b"ilst",      ContainerType::Container,      false,  "Item List - Apple metadata container", "/mnoov/udata/meta/ilst";
     AART, b"aart",      ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/aart";
     AARTC, b"aART",     ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/aART";
+    AKID, b"akID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/akID";
+    ATID, b"atID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/atID";
     CATG, b"catg",      ContainerType::Container,      false,  "Category",                             "/moov/udata/meta/ilst/catg";
     COVR, b"covr",      ContainerType::Container,      false,  "Cover Art",                            "/moov/udata/meta/ilst/covr";
+    CMID, b"cmID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/cmID";
     CPIL, b"cpil",      ContainerType::Container,      false,  "Compilation boolean",                  "/moov/udata/meta/ilst/cpil";
     CPRT, b"cprt",      ContainerType::Container,      false,  "Copyright",                            "/moov/udata/meta/ilst/cprt";
     DATA, b"data",      ContainerType::NotContainer,   true,   "Data box for ILST data",               "/moov/udata/meta/ilist/<ilst-entry>/data";
     DESC, b"desc",      ContainerType::NotContainer,   true,   "Description",                          "/moov/udata/meta/ilist/<ilst-entry>/desc";
     DISK, b"disk",      ContainerType::Container,      false,  "Disk number and total disks",          "/moov/udata/meta/ilst/disk";
+    GEID, b"geID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/geID";
     GNRE, b"gnre",      ContainerType::Container,      false,  "Genre",                                "/moov/udata/meta/ilst/gnre";
     HDVD, b"hdvd",      ContainerType::Container,      false,  "High Definition Video",                "/moov/udata/meta/ilst/hdvd";
     KEYW, b"keyw",      ContainerType::Container,      false,  "Key Word",                             "/moov/udata/meta/ilst/keyw";
@@ -248,6 +252,7 @@ define_boxes! {
     OWNR, b"ownr",      ContainerType::Container,      false,  "Owner",                                "/moov/udata/meta/ilst/ownr";
     PGAP, b"pgap",      ContainerType::Container,      false,  "Program Gap boolean",                  "/moov/udata/meta/ilst/pgap";
     PCST, b"pcst",      ContainerType::Container,      false,  "Podcast",                              "/moov/udata/meta/ilst/pcst";
+    PURD, b"purd",      ContainerType::Container,      false,  "Purchase Date",                        "/moov/udata/meta/ilst/purd";
     RATE, b"rate",      ContainerType::Container,      false,  "Rating",                               "/moov/udata/meta/ilst/rate";
     RTNG, b"rtng",      ContainerType::Container,      false,  "Advisory",                             "/moov/udata/meta/ilst/rtng";
     SOAA, b"soaa",      ContainerType::Container,      false,  "Sort Album Artist",                    "/moov/udata/meta/ilst/soaa";
@@ -256,6 +261,7 @@ define_boxes! {
     SOCO, b"soco",      ContainerType::Container,      false,  "Sort Composer",                        "/moov/udata/meta/ilst/soco";
     SONM, b"sonm",      ContainerType::Container,      false,  "Sort Name",                            "/moov/udata/meta/ilst/sonm";
     SOSN, b"sosn",      ContainerType::Container,      false,  "Sort Show",                            "/moov/udata/meta/ilst/sosn";
+    SFID, b"SFID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/sfID";
     STIK, b"stik",      ContainerType::Container,      false,  "Media Type",                           "/moov/udata/meta/ilst/stik";
     TMPO, b"tmpo",      ContainerType::Container,      false,  "Tempo guide",                          "/moov/udata/meta/ilst/tmpo";
     TRKN, b"trkn",      ContainerType::Container,      false,  "Track number and total tracks",        "/moov/udata/meta/ilist/trkn";

@@ -483,7 +483,9 @@ dependencies = [
  "mp3-metadata",
  "mp4parse",
  "nom",
+ "num-derive",
  "num-format",
+ "num-traits",
  "prettytable-rs",
  "puremp3",
  "structopt",
@@ -587,6 +589,17 @@ dependencies = [
  "lexical-core",
  "memchr",
  "version_check",
+]
+
+[[package]]
+name = "num-derive"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c8b15b261814f992e33760b1fca9fe8b693d8a65299f20c9901688636cfb746"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

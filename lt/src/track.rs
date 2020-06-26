@@ -14,7 +14,9 @@ use std::path;
 use std::time::Duration;
 use std::vec::Vec;
 
+use crate::mpeg4;
 use format::consts::FORMAT_CLEAN;
+use mpeg4::formats::AudioObjectTypes;
 use prettytable::{format, Table};
 
 //
@@ -149,6 +151,14 @@ pub struct MPEG4AudioFormat {
   pub bits_per_sample: u16,
   /// Numnber of samples for this track.
   pub total_samples: u64,
+  /// Audio Codec (e.g. AAC)
+  pub codec: AudioObjectTypes,
+  /// Geenral class of decoder used.
+  pub decoder: u8,
+  /// Maximum bitrate used by the stream.
+  pub max_bitrate: u32,
+  /// Average bitrate used by the stream.
+  pub avg_bitrate: u32,
 }
 
 impl MPEG4AudioFormat {

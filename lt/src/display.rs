@@ -14,7 +14,6 @@ use std::io;
 use std::io::Read;
 use std::path::PathBuf;
 use std::time::Duration;
-
 const NONE_SHORT: &str = "-";
 
 /// Display regular files and audio files, separately dispaying
@@ -78,7 +77,7 @@ pub fn list_files(mut p: PathBuf) -> Result<(), Box<dyn Error>> {
     table.set_format(*format::consts::FORMAT_CLEAN);
 
     // Most cases we have no disc numbers so add the track header now
-    // TODO(jdr): Checking the first rack for this seems to work, but feels wrong.
+    // TODO(jdr): Checking the first track for this seems to work, but feels wrong.
     if album.tracks[0].disk_number.is_none() {
       table.add_row(title_row(&album.tracks[0].format));
     }
@@ -128,7 +127,8 @@ pub fn list_files(mut p: PathBuf) -> Result<(), Box<dyn Error>> {
               format_duration(&f.duration(), true),
               format!("{} KHz", (f.sample_rate() / 1000.0)),
               format!("{} bits", f.bits_per_sample.to_string()),
-              t.file_format.as_ref().unwrap_or(&NONE_SHORT.to_string()),
+              format!("{}", f.codec),
+              format!("{}", f.avg_bitrate),
               pn,
             ]);
           }
@@ -292,6 +292,9 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
           "Samples",
           f.total_samples.to_formatted_string(&Locale::en),
         ));
+        tes.push(Te("Codec", format!("{}", f.codec)));
+        tes.push(Te("Average Bit Rate", format!("{}", f.avg_bitrate)));
+        tes.push(Te("Maxium Bit Rate", format!("{}", f.max_bitrate)));
         tes.push(Te("Channels", f.channels.to_formatted_string(&Locale::en)));
         tes.push(Te("Duration", format_duration(&f.duration(), false)));
       }
@@ -370,7 +373,7 @@ fn title_row(f: &Option<track::CodecFormat>) -> Row {
     match c {
       track::CodecFormat::PCM(_) => pcm_title_row(),
       track::CodecFormat::MPEG3(_) => mpeg3_title_row(),
-      track::CodecFormat::MPEG4(_) => pcm_title_row(),
+      track::CodecFormat::MPEG4(_) => mpeg4_title_row(),
     }
   } else {
     pcm_title_row()
@@ -404,6 +407,25 @@ const MPEG_LIST_TITLES: [&str; 9] = [
 fn mpeg3_title_row() -> Row {
   let mut r = Row::empty();
   for s in &MPEG_LIST_TITLES {
+    r.add_cell(Cell::new(s));
+  }
+  r
+}
+
+const MPEG4_LIST_TITLES: [&str; 8] = [
+  "Track",
+  "Title",
+  "Duration",
+  "Sample Rate",
+  "Depth",
+  "Codec",
+  "Avg Bitrate",
+  "File",
+];
+
+fn mpeg4_title_row() -> Row {
+  let mut r = Row::empty();
+  for s in &MPEG4_LIST_TITLES {
     r.add_cell(Cell::new(s));
   }
   r

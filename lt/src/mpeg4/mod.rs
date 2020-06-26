@@ -1,6 +1,7 @@
 //! Implementation of MPEG4 metadata reading.
 pub mod boxes;
 pub mod find;
+pub mod formats;
 // pub mod boxes::box_types;
 pub mod util;
 use util::LevelStack;
@@ -200,10 +201,33 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                 }
             }
         }
-        box_types::STSD => {
+        // box_types::STSD => {
+        //     let mut channels: u16 = 0;
+        //     let mut fmt: &mut [u8; 4] = &mut [0; 4];
+        //     stbl::get_short_audio_stsd(
+        //         &mut b,
+        //         &mut fmt,
+        //         &mut channels,
+        //         &mut format.bits_per_sample,
+        //         &mut format.sr,
+        //     );
+        //     format.channels = channels as u8;
+
+        //     // println!("Format: {:?}", format);
+        //     // println!("Channels: {:?}", channels);
+
+        //     // TODO(jdr): This might be better obtained from somewhere else.
+        //     // e.g. FTYP.
+        //     tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
+        // }
+
+        // This should appear as enclosed by an STSD.
+        // However, there is usually only one entry if it's an MP4A.
+        // and they should be just normal boxes.
+        box_types::MP4A => {
             let mut channels: u16 = 0;
             let mut fmt: &mut [u8; 4] = &mut [0; 4];
-            stbl::get_short_audio_stsd(
+            stbl::read_mp4a(
                 &mut b,
                 &mut fmt,
                 &mut channels,
@@ -219,6 +243,22 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
             // e.g. FTYP.
             tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
         }
+        box_types::ESDS => {
+            let mut sampling_frequency: u32 = 0;
+            let mut channel_config: u8 = 0;
+            let mut fmt: &mut [u8; 4] = &mut [0; 4];
+            stbl::read_esds(
+                &mut b,
+                &mut fmt,
+                &mut format.decoder,
+                &mut format.avg_bitrate,
+                &mut format.max_bitrate,
+                &mut format.codec,
+                &mut sampling_frequency,
+                &mut channel_config,
+            );
+        }
+        // We presume this is comming from within
         box_types::MDHD => {
             let mut creation: u64 = 0;
             let mut modification: u64 = 0;
