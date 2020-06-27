@@ -10,8 +10,9 @@ use bytes::buf::Buf;
 /// timescale: number of units that pass in a second.
 /// duration: in units of the timescale (e.g. samples);
 /// language: ISO 639-2/T Representes as 16 bits be: 0111112222233333.
-/// where each digit is a bit of a five bit ascii char code. There are 3
-/// of these - 3 lower case ascii characters
+/// where each digit is a bit of an ascii code computes the difference
+/// between the ascii value and 0x60. (0x61 = 'a').
+/// There are 3 of these - 3 lower case ascii characters
 pub fn get_mdhd<'a>(
     bx: &'a mut MP4Box,
     creation: &'a mut u64,
