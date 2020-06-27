@@ -281,6 +281,7 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                 Utc,
             );
         }
+        box_types::MDAT => md.media_size = b.size,
         _ => (),
     }
 

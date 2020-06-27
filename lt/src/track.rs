@@ -354,6 +354,12 @@ pub struct MPEG4Metadata {
 
   /// Time the media was last update.
   pub modification: DateTime<Utc>,
+
+  /// The size of Media Box.
+  /// This is the size of the actual media data, independent of
+  /// the metadata. It could be expressed as a percentage of the file
+  /// size.
+  pub media_size: u32,
 }
 
 impl Default for MPEG4Metadata {
@@ -361,8 +367,10 @@ impl Default for MPEG4Metadata {
     MPEG4Metadata {
       text: HashMap::<String, String>::default(),
       byte: HashMap::<String, u8>::default(),
+      /// TODO(jdr): Seriously consider using Option's here.
       creation: DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
       modification: DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+      media_size: 0,
     }
   }
 }

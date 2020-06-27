@@ -32,9 +32,8 @@ pub fn list_files(mut p: PathBuf) -> Result<(), Box<dyn Error>> {
       format!("File not found: {}", p.as_path().display()),
     )));
   }
-
   // If it's a file get the track build an album around it.
-  // Otherwise,
+  // Otherwise, build an album around the files in the directory.
   if p.is_file() {
     let (tracks, f) = track::files_from(p)?;
     album = album::album_from_tracks(tracks);
@@ -199,9 +198,9 @@ fn print_te_list(v: Vec<Te>) {
 /// Prints a detailed track description, including listing of all found
 /// metadata.
 fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
-  let fsize = match tk.path.as_path().metadata() {
-    Ok(md) => md.len().to_formatted_string(&Locale::en),
-    Err(_) => "<Unknown>".to_string(),
+  let (fs_str, fs_int) = match tk.path.as_path().metadata() {
+    Ok(md) => (md.len().to_formatted_string(&Locale::en), md.len()),
+    Err(_) => ("<Unknown>".to_string(), 0),
   };
 
   let mut tes = Vec::<Te>::new();
@@ -309,9 +308,22 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
   }
 
   // Tail of basic track
-  tes.push(Te("Size", format!("{} bytes", fsize)));
+  tes.push(Te("File Size", format!("{} bytes", fs_str)));
   // Extra metadata (not the Hashes of collected metadata) we want to display.
   if let Some(track::FormatMetadata::MP4(mmd)) = &tk.metadata {
+    let data_percent = if fs_int == 0 {
+      "".to_string()
+    } else {
+      format!("- {:0.2}%", (mmd.media_size as f64 / fs_int as f64) * 100.0)
+    };
+    tes.push(Te(
+      "Media Size:",
+      format!(
+        "{} bytes {}",
+        mmd.media_size.to_formatted_string(&Locale::en),
+        data_percent
+      ),
+    ));
     tes.push(Te("Creation Date:", format!("{}", mmd.creation)));
     tes.push(Te("Modification Date:", format!("{}", mmd.modification)));
   }
