@@ -217,16 +217,22 @@ define_boxes! {
     TKHD, b"tkhd",      ContainerType::NotContainer,   true,   "Track Header",                         "/movv/trak/tkhd";
     TRAK, b"trak",      ContainerType::Container,      false,  "Track Container",                      "/moov/trak";
     UDTA, b"udta",      ContainerType::Container,      false,  "User Data Container",                  "/moov/udta";
+    UUID, b"UUID",      ContainerType::NotContainer,   false,  "UUID is the user special type",         "uuid";
     MDAT, b"mdat",      ContainerType::NotContainer,   false,  "Media Data Box",                       "/mdat";
     FREE, b"free",      ContainerType::NotContainer,   false,  "Free Space",                           "/free";
 
     // Sample Table Boxes
     STBL, b"stbl",      ContainerType::Container,      false,  "Sample Table Box Container",           "/moov/trak/mdia/minf/stbl";
-    ESDS, b"esds",      ContainerType::NotContainer,   true,   "Elementary Stream Descriptor",         "/moov/track/mdia/minf/stbl/stsd/mp4a/esds";
+    DRMS, b"drms",      ContainerType::Special(28),    false,  "Digital Rights Management",            "/moov/track/mdia/minf/stbl/stsd/drms";
+    ESDS, b"esds",      ContainerType::NotContainer,   true,   "Elementary Stream Descriptor",         "/moov/track/mdia/minf/stbl/stsd/{mp4a,drms}/esds";
+    FRMA, b"frma",      ContainerType::NotContainer,   false,  "Original Format Box",                  "moov/track/mdia/minf/stbl/stsd/drms/sinf/frma";
     MP4A, b"mp4a",      ContainerType::Special(28),    false,  "MPEG 4 Audio SampleEntry Box",         "/moov/track/mdia/minf/stbl/stsd/mp4a";
+    SCHI, b"schi",      ContainerType::Container,      false,  "Scheme (Specific) Information Box",    "/moov/track/mdia/minf/stbl/drms/schi";
+    SCHM, b"schm",      ContainerType:NotContainer,    true,   "Protection Sceheme Informaiton Box",   "/moov/track/mdia/minf/stbl/drms/schm";
+    SINF, b"sinf",      ContainerType::Container,      false,  "Protection Scheme Information Box",    "/moov/track/mdia/minf/stbl/drms/sinf";
     STCO, b"stco",      ContainerType::NotContainer,   true,   "Chunk Offsets",                        "/moov/track/mdia/minf/stbl/stco";
     STSC, b"stsc",      ContainerType::NotContainer,   true,   "Sample to Chunk",                      "/moov/track/mdia/minf/stbl/stsc";
-    STSD, b"stsd",      ContainerType::Special(4),     true,   "Sample Description",                    "/moov/track/mdia/minf/stbl/stsd";
+    STSD, b"stsd",      ContainerType::Special(4),     true,   "Sample Description",                   "/moov/track/mdia/minf/stbl/stsd";
     STTS, b"stts",      ContainerType::NotContainer,   true,   "Time to sample",                       "/movv/track/mdia/minf/stbl/stts";
     STSZ, b"stsz",      ContainerType::NotContainer,   true,   "Sample Sizes",                         "/moov/track/mdia/minf/stbl/stsz";
 

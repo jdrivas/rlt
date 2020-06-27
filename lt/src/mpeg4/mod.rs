@@ -185,6 +185,17 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                         box_types::XART | box_types::XARTC | box_types::AART => {
                             tk.artist = Some(val)
                         }
+                        // For the sort order types
+                        // give prioirty first to the actuals, above.
+                        box_types::SOAL => {
+                            tk.album.get_or_insert(val);
+                        }
+                        box_types::SOAR => {
+                            tk.artist.get_or_insert(val);
+                        }
+                        box_types::SONM => {
+                            tk.title.get_or_insert(val);
+                        }
                         _ => (),
                     }
                 }
@@ -205,30 +216,15 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                 }
             }
         }
-        // box_types::STSD => {
-        //     let mut channels: u16 = 0;
-        //     let mut fmt: &mut [u8; 4] = &mut [0; 4];
-        //     stbl::get_short_audio_stsd(
-        //         &mut b,
-        //         &mut fmt,
-        //         &mut channels,
-        //         &mut format.bits_per_sample,
-        //         &mut format.sr,
-        //     );
-        //     format.channels = channels as u8;
-
-        //     // println!("Format: {:?}", format);
-        //     // println!("Channels: {:?}", channels);
-
-        //     // TODO(jdr): This might be better obtained from somewhere else.
-        //     // e.g. FTYP.
-        //     tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
-        // }
-
         // This should appear as enclosed by an STSD.
         // However, there is usually only one entry if it's an MP4A.
         // and they should be just normal boxes.
-        box_types::MP4A => {
+        // DRMS is the Apple designation for its' fair play
+        // protection.
+        // DRMS _should_ have an enclsoing sinf box, which will have an frma box
+        //  ( /moov ... /stsd/drms/sinf/frma) which will identify MPG4A as
+        // the originally type.
+        box_types::MP4A | box_types::DRMS => {
             let mut channels: u16 = 0;
             stbl::read_mp4a(
                 &mut b,
