@@ -168,6 +168,12 @@ pub fn read_mp4a<'a>(
 //     ExtensionDescriptor extDescr[0 .. 255];
 // }
 //
+
+// TODO(jdr): Perhaps it's better to return the integers for
+// AudioObjectTypes and ChannelConfig and then
+// let applications use the Enums as they see fit.
+// It's almost certainly trival but it removes the copies and
+// the assignment logic.
 #[allow(clippy::too_many_arguments)]
 pub fn read_esds<'a>(
     bx: &'a mut MP4Box,
