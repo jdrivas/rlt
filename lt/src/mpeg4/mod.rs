@@ -1,4 +1,8 @@
 //! Implementation of MPEG4 metadata reading.
+extern crate chrono;
+// use chrono::prelude::DateTime;
+use chrono::{DateTime, Duration, NaiveDate, Utc};
+// use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub mod boxes;
 pub mod find;
 pub mod formats;
@@ -10,7 +14,7 @@ use crate::file;
 use crate::file::FileFormat;
 use crate::track;
 use boxes::box_types;
-use boxes::box_types::{BoxType, ContainerType};
+use boxes::box_types::BoxType;
 use boxes::{ilst, mdia, read_box_size_type, stbl, MP4Buffer};
 
 use std::error::Error;
@@ -71,10 +75,10 @@ impl file::Decoder for Mpeg4 {
             ..Default::default()
         }));
 
-        println!("File type: {:?}", self);
+        // println!("File type: {:?}", self);
         read_track(r, &mut tk)?;
-        println!("Track: {:?}", &tk.title);
-        println!();
+        // println!("Track: {:?}", &tk.title);
+        // println!();
 
         Ok(Some(tk))
     }
@@ -226,39 +230,32 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
         // and they should be just normal boxes.
         box_types::MP4A => {
             let mut channels: u16 = 0;
-            let mut fmt: &mut [u8; 4] = &mut [0; 4];
             stbl::read_mp4a(
                 &mut b,
-                &mut fmt,
                 &mut channels,
                 &mut format.bits_per_sample,
                 &mut format.sr,
             );
             format.channels = channels as u8;
 
-            // println!("Format: {:?}", format);
-            // println!("Channels: {:?}", channels);
-
             // TODO(jdr): This might be better obtained from somewhere else.
             // e.g. FTYP.
-            tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
+            // tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
         }
+        // This should be contained by an MP4A block, but could be comming
+        // from multiple tracks.
         box_types::ESDS => {
             let mut sampling_frequency: u32 = 0;
-            let mut channel_config: u8 = 0;
-            let mut fmt: &mut [u8; 4] = &mut [0; 4];
             stbl::read_esds(
                 &mut b,
-                &mut fmt,
                 &mut format.decoder,
                 &mut format.avg_bitrate,
                 &mut format.max_bitrate,
                 &mut format.codec,
                 &mut sampling_frequency,
-                &mut channel_config,
+                &mut format.channel_config,
             );
         }
-        // We presume this is comming from within
         box_types::MDHD => {
             let mut creation: u64 = 0;
             let mut modification: u64 = 0;
@@ -271,6 +268,17 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                 &mut timescale,
                 &mut format.total_samples,
                 &mut language,
+            );
+
+            md.modification = DateTime::<Utc>::from_utc(
+                NaiveDate::from_ymd(1904, 1, 1).and_hms(0, 0, 0)
+                    + Duration::seconds(modification as i64),
+                Utc,
+            );
+            md.creation = DateTime::<Utc>::from_utc(
+                NaiveDate::from_ymd(1904, 1, 1).and_hms(0, 0, 0)
+                    + Duration::seconds(creation as i64),
+                Utc,
             );
         }
         _ => (),

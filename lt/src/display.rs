@@ -293,9 +293,16 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
           f.total_samples.to_formatted_string(&Locale::en),
         ));
         tes.push(Te("Codec", format!("{}", f.codec)));
-        tes.push(Te("Average Bit Rate", format!("{}", f.avg_bitrate)));
-        tes.push(Te("Maxium Bit Rate", format!("{}", f.max_bitrate)));
+        tes.push(Te(
+          "Average Bit Rate",
+          format!("{} bps", f.avg_bitrate.to_formatted_string(&Locale::en)),
+        ));
+        tes.push(Te(
+          "Maxium Bit Rate",
+          format!("{} bps", f.max_bitrate.to_formatted_string(&Locale::en)),
+        ));
         tes.push(Te("Channels", f.channels.to_formatted_string(&Locale::en)));
+        tes.push(Te("Channel Config", format!("{}", f.channel_config)));
         tes.push(Te("Duration", format_duration(&f.duration(), false)));
       }
     }
@@ -303,13 +310,18 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
 
   // Tail of basic track
   tes.push(Te("Size", format!("{} bytes", fsize)));
+  // Extra metadata (not the Hashes of collected metadata) we want to display.
+  if let Some(track::FormatMetadata::MP4(mmd)) = &tk.metadata {
+    tes.push(Te("Creation Date:", format!("{}", mmd.creation)));
+    tes.push(Te("Modification Date:", format!("{}", mmd.modification)));
+  }
 
   // Display.
   print_te_list(tes);
   println!();
 
-  // Display Metadata.
-  if let Some(md) = tk.metadata {
+  // Display Tagged Metadata.
+  if let Some(md) = &tk.metadata {
     let o = std::io::stdout();
     match md {
       track::FormatMetadata::Flac(fmd) => fmd.print(o)?,

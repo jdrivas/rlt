@@ -1,6 +1,5 @@
 //! The model for a collection of audio tracks.
 
-extern crate chrono;
 use crate::track;
 use std::error::Error;
 use std::io;

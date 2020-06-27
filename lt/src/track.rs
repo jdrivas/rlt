@@ -1,5 +1,8 @@
 //! The model for an audio track generally, and as a function of file and audio codec format.
 
+extern crate chrono;
+use chrono::{DateTime, NaiveDateTime, Utc};
+
 use crate::file;
 use crate::file::{Decoder, FileFormat};
 
@@ -16,7 +19,7 @@ use std::vec::Vec;
 
 use crate::mpeg4;
 use format::consts::FORMAT_CLEAN;
-use mpeg4::formats::AudioObjectTypes;
+use mpeg4::formats::{AudioObjectTypes, ChannelConfig};
 use prettytable::{format, Table};
 
 //
@@ -147,6 +150,8 @@ pub struct MPEG4AudioFormat {
   pub sr: u32,
   /// Channels of audio (eg. 1 for mono, 2 for stereo etc.).
   pub channels: u8,
+  /// Channel Configuration
+  pub channel_config: ChannelConfig,
   /// Sample size (e.g. 16, 24, 48).
   pub bits_per_sample: u16,
   /// Numnber of samples for this track.
@@ -336,13 +341,30 @@ impl ID3Metadata {
 ///
 /// Types: 0 (Implicit), 13(JPEG), 14(PMG) are not stored at the moment.
 ///
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MPEG4Metadata {
   /// Stored text type data as string, keyed off of the enclosing box's 4 character code e.g. `b"trkn"`.
   pub text: HashMap<String, String>,
   // pub data: HashMap<String, [u8]>, TODO(jdr): Figure out how to capture Data typed metadata.
   /// Stored single byte data as a single byte keyed on the enclsoing box's 4 character code e.g. `b"cpil"`.
   pub byte: HashMap<String, u8>,
+
+  /// Time the media was created.
+  pub creation: DateTime<Utc>,
+
+  /// Time the media was last update.
+  pub modification: DateTime<Utc>,
+}
+
+impl Default for MPEG4Metadata {
+  fn default() -> Self {
+    MPEG4Metadata {
+      text: HashMap::<String, String>::default(),
+      byte: HashMap::<String, u8>::default(),
+      creation: DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+      modification: DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+    }
+  }
 }
 
 impl MPEG4Metadata {

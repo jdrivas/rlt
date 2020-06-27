@@ -1,6 +1,6 @@
 //! Reader functionality for sample table and it's descendents.
 use crate::mpeg4::boxes::{MP4Box, BOX_HEADER_SIZE, FULL_BOX_HEADER_SIZE};
-use crate::mpeg4::formats::AudioObjectTypes;
+use crate::mpeg4::formats::{AudioObjectTypes, ChannelConfig};
 // use crate::mpeg4::util::dump_buffer;
 use bytes::buf::Buf;
 
@@ -43,7 +43,6 @@ use bytes::buf::Buf;
 ///  ```
 pub fn read_mp4a<'a>(
     bx: &'a mut MP4Box,
-    _format: &'a mut [u8; 4],
     channels: &'a mut u16,
     sample_size: &'a mut u16,
     sample_rate: &'a mut u32,
@@ -172,13 +171,12 @@ pub fn read_mp4a<'a>(
 #[allow(clippy::too_many_arguments)]
 pub fn read_esds<'a>(
     bx: &'a mut MP4Box,
-    _format: &'a mut [u8; 4],
     decoder: &'a mut u8,
     avg_bitrate: &'a mut u32,
     max_bitrate: &'a mut u32,
     codec: &'a mut AudioObjectTypes,
     sample_frequency: &mut u32,
-    channel_config: &mut u8,
+    channel_config: &mut ChannelConfig,
     // channels: &'a mut u16,
     // sample_size: &'a mut u16,
     // sample_rate: &'a mut u32,
@@ -361,7 +359,7 @@ fn read_audio_specific_config(
     length: u32,
     object_type: &mut AudioObjectTypes,
     frequency: &mut u32,
-    channel_config: &mut u8,
+    channel_config: &mut ChannelConfig,
 ) {
     // println!("Decoding AUDIO_SPECIFIC_INFO");
 
@@ -377,7 +375,7 @@ fn read_audio_specific_config(
             let bits = bx.buf.get_u16();
             *object_type = AudioObjectTypes::from(((bits & 0b11111000_00000000) >> 11) as u8);
             let fi = ((bits & 0b00000111_10000000) >> 7) as usize; // It's an index so usize.
-            *channel_config = ((bits & 0b00000000_01111000) >> 3) as u8;
+            *channel_config = ChannelConfig::from(((bits & 0b00000000_01111000) >> 3) as u8);
             *frequency = SAMPLE_FREQUENCIES[fi];
         }
         // We will assume that the only way this happens is if
@@ -395,8 +393,9 @@ fn read_audio_specific_config(
             );
             // let bits = bx.but.
             let fi = ((bits[1] & 0b000_11110) >> 1) as usize; // It's an index so usize.
-            *channel_config =
-                ((u16::from_be_bytes([bits[1], bits[2]]) & 0b00000001_11100000) >> 3) as u8;
+            *channel_config = ChannelConfig::from(
+                ((u16::from_be_bytes([bits[1], bits[2]]) & 0b00000001_11100000) >> 3) as u8,
+            );
             *frequency = SAMPLE_FREQUENCIES[fi];
         }
         // This is should be the case of standard object_type and embedded frequency
@@ -413,7 +412,7 @@ fn read_audio_specific_config(
             *frequency = ((u32::from_be_bytes([bits[1], bits[2], bits[3], bits[4]])
                 & 0b01111111_11111111_11111111_10000000)
                 >> 7) as u32;
-            *channel_config = bits[4] & 0b0111_1000;
+            *channel_config = ChannelConfig::from(bits[4] & 0b0111_1000);
         }
         // Here we have both extended object type, and embeded frequency (does this ever happen)?
         // We'll assume both extension values are set correctly.
@@ -432,13 +431,14 @@ fn read_audio_specific_config(
             *frequency = ((u32::from_be_bytes([bits[1], bits[2], bits[3], bits[4]])
                 & 0b00000001_11111111_11111111_11111110)
                 >> 1) as u32;
-            *channel_config =
-                ((u16::from_be_bytes([bits[4], bits[5]]) & 0b00000001_11100000) >> 5) as u8;
+            *channel_config = ChannelConfig::from(
+                ((u16::from_be_bytes([bits[4], bits[5]]) & 0b00000001_11100000) >> 5) as u8,
+            );
         }
         _ => {
             *object_type = AudioObjectTypes::Null;
             *frequency = 0; // this may want to be an option.
-            *channel_config = 0; // This probably wants to be a Option.
+            *channel_config = ChannelConfig::Unknown;
             eprintln!("Bad length in esds/audio_specific_descirptor!");
         }
     }
