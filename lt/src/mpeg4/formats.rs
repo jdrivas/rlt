@@ -153,6 +153,8 @@ impl Default for AudioObjectTypes {
 /// 6: 6 channels: front-center, front-left, front-right, back-left, back-right, LFE-channel
 /// 7: 8 channels: front-center, front-left, front-right, side-left, side-right, back-left, back-right, LFE-channel
 /// 8-15: Reserved
+// TODO(jdr): consider adding a u8 to Unknown to capture the value that was read.
+// In addition we could define 8-15 -> Reserved1-Reserved8 or Reserved-08 - Reserved-15
 #[allow(non_camel_case_types)]
 #[derive(FromPrimitive, ToPrimitive)]
 pub enum ChannelConfig {
