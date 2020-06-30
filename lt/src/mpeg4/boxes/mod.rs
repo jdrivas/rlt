@@ -90,11 +90,12 @@ pub struct VersionFlag {
 // Version/Flags information if this box is identified as a
 // FullBox (container or otherwise).
 
-/// Read box header reads in the size and 4 character code type as a u32.
-/// This type is used to match to an enum for the known BoxTypes which
+/// Reads in the size and 4 character code type as a u32, and constructs
+/// an MP4Box out fo the buffer.
+///  FourCC type is used to match to an enum for the known BoxTypes which
 /// determine the details in the BoxSpec (Box/FullBox, Container/NotContainer.)
-/// In the caes that the type is not known and Unknown type which can at
-/// least be printed out is provided.
+/// In the caes that the type is not known an Unknown type is provided, which can at
+/// least be printed out with size and code.
 pub fn read_box_header<'i>(buf: &mut &'i [u8]) -> MP4Box<'i> {
     // Read box header: [sssstttt]
     // s = 1 byte of size; 4 total.

@@ -333,7 +333,7 @@ fn read_decoder_config_descriptor(
 /// 13: Reserved
 /// 14: Reserved
 /// 15: frequency is written explictly
-// TODO(jdr): Consdier only putting 12 elements in this table and
+// TODO(jdr): Consider only putting 12 elements in this table and
 // thereby panicing if we try to access the reserved or extension entries.
 const SAMPLE_FREQUENCIES: [u32; 16] = [
     96_000, 88_200, 64_000, 48_000, 44_100, 32000, 24_400, 22_050, 16_000, 12_000, 11_025, 8_000,
