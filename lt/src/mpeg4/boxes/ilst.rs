@@ -1,11 +1,12 @@
 //! Reader functionality for Apple ilst generic metadata box and it's descendents.
 use crate::mpeg4::boxes::{MP4Box, FULL_BOX_HEADER_SIZE};
+// use crate::mpeg4::util::dump_buffer;
 use bytes::buf::Buf;
 use std::fmt;
 
 // #[derive(Debug)]
 pub enum DataBoxContent<'a> {
-    Byte(u8),
+    Byte(u32),
     Text(&'a [u8]),
     Data(&'a [u8]),
 }
@@ -44,19 +45,26 @@ const BYTE_FLAG: u32 = 21;
 // want.
 pub fn get_data_box<'a>(bx: &'a mut MP4Box) -> DataBoxContent<'a> {
     // println!("box: {:?}", bx);
-    // println!("buff: {:x?}", bx.buf);
+    // dump_buffer(bx.buf);
 
     // Read past the full box (size, type, flags/version)
     bx.buf.advance(FULL_BOX_HEADER_SIZE);
 
     // data box has a predfeined 0
+    // Though some seem to characterie this as lang.
     bx.buf.get_u32(); //
     if let Some(vf) = &bx.version_flag {
         match vf.flag {
             TEXT_FLAG => DataBoxContent::Text(&bx.buf),
             IMPLICIT_FLAG | JPEG_FLAG | PNG_FLAG => DataBoxContent::Data(&bx.buf),
-            BYTE_FLAG => DataBoxContent::Byte(bx.buf.get_u8()),
-            _ => DataBoxContent::Byte(b'0'), // The true cases here is an error.
+            // This bit of shenanigens is really just from observation.
+            // It might be some other deciding.
+            BYTE_FLAG => DataBoxContent::Byte(if bx.buf.len() < 4 {
+                bx.buf.get_u8() as u32
+            } else {
+                bx.buf.get_u32()
+            }),
+            _ => DataBoxContent::Byte(0x0000), // The true cases here are errors.
         }
     } else {
         // This branch of the if is an error, so maybe we should return one?
