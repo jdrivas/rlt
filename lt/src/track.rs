@@ -6,6 +6,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use crate::file;
 use crate::file::{Decoder, FileFormat};
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -164,6 +165,8 @@ pub struct MPEG4AudioFormat {
   pub max_bitrate: u32,
   /// Average bitrate used by the stream.
   pub avg_bitrate: u32,
+  /// Is the file encrypted with DRM
+  pub protected: bool,
 }
 
 impl MPEG4AudioFormat {
@@ -319,6 +322,53 @@ impl ID3Metadata {
 // MPEG4
 //
 
+// TODO: Can we change String to &str?
+#[derive(Debug)]
+pub struct MetaEntry<T> {
+  pub description: String,
+  pub value: T,
+}
+
+impl Ord for MetaEntry<String> {
+  fn cmp(&self, other: &Self) -> Ordering {
+    self.value.cmp(&other.value)
+  }
+}
+
+impl PartialOrd for MetaEntry<String> {
+  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    Some(self.cmp(other))
+  }
+}
+
+impl PartialEq for MetaEntry<String> {
+  fn eq(&self, other: &Self) -> bool {
+    self.value == other.value
+  }
+}
+
+impl Eq for MetaEntry<String> {}
+
+impl Ord for MetaEntry<u32> {
+  fn cmp(&self, other: &Self) -> Ordering {
+    self.value.cmp(&other.value)
+  }
+}
+
+impl PartialOrd for MetaEntry<u32> {
+  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    Some(self.cmp(other))
+  }
+}
+
+impl PartialEq for MetaEntry<u32> {
+  fn eq(&self, other: &Self) -> bool {
+    self.value == other.value
+  }
+}
+
+impl Eq for MetaEntry<u32> {}
+
 /// MPeg 4 Format Metadata
 ///
 /// This is pulled from the ilst box found: /moov/udta/ilist.
@@ -344,10 +394,10 @@ impl ID3Metadata {
 #[derive(Debug)]
 pub struct MPEG4Metadata {
   /// Stored text type data as string, keyed off of the enclosing box's 4 character code e.g. `b"trkn"`.
-  pub text: HashMap<String, String>,
+  pub text: HashMap<String, MetaEntry<String>>,
   // pub data: HashMap<String, [u8]>, TODO(jdr): Figure out how to capture Data typed metadata.
   /// Stored single byte data as a single byte keyed on the enclsoing box's 4 character code e.g. `b"cpil"`.
-  pub byte: HashMap<String, u8>,
+  pub byte: HashMap<String, MetaEntry<u32>>,
 
   /// Time the media was created.
   pub creation: DateTime<Utc>,
@@ -362,11 +412,12 @@ pub struct MPEG4Metadata {
   pub media_size: u32,
 }
 
+// TODO(jdr): Fix this. It only needs 1 HasTable.
 impl Default for MPEG4Metadata {
   fn default() -> Self {
     MPEG4Metadata {
-      text: HashMap::<String, String>::default(),
-      byte: HashMap::<String, u8>::default(),
+      text: HashMap::<String, MetaEntry<String>>::default(),
+      byte: HashMap::<String, MetaEntry<u32>>::default(),
       /// TODO(jdr): Seriously consider using Option's here.
       creation: DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
       modification: DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
@@ -382,20 +433,20 @@ impl MPEG4Metadata {
     if !self.text.is_empty() || !self.byte.is_empty() {
       let mut table = Table::new();
       table.set_format(*FORMAT_CLEAN);
-      table.add_row(row!["Key", "Value"]);
+      table.add_row(row!["Key", "Description", "Value"]);
 
       // Print the text ones first.
       let mut vs: Vec<_> = self.text.iter().collect();
       vs.sort();
       for (k, v) in vs {
-        table.add_row(row![k, v]);
+        table.add_row(row![k, v.description, v.value]);
       }
 
       // Then the single bytes ones.
       let mut vs: Vec<_> = self.byte.iter().collect();
       vs.sort();
       for (k, v) in vs {
-        table.add_row(row![k, v]);
+        table.add_row(row![k, v.description, v.value]);
       }
 
       // Display the table.

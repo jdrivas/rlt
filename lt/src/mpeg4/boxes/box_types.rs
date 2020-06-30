@@ -4,24 +4,6 @@ use crate::mpeg4::boxes::{BOX_HEADER_SIZE, FULL_BOX_HEADER_SIZE};
 use lt_macro::define_boxes;
 use std::fmt;
 
-/// Boxes are either a pure conatiner, a special container (has data),
-/// or not a conatiner.
-#[derive(Debug, PartialEq, Eq)]
-pub enum ContainerType {
-    Container,
-    Special(usize), // Sizes can only be u32 so we can't skip more than that.
-    NotContainer,
-}
-
-/// A BoxSpec identifies properties of a box and carrys the basic informaiton.
-// TOD(jdr); do we really need to carry around bt_id?
-#[derive(PartialEq, Eq)]
-pub struct BoxSpec {
-    pub bt_id: u32,               // 32bit CC equivelant
-    pub container: ContainerType, // Indicates if it's a container and full or simple, or other
-    pub full: bool,
-}
-
 /// Display a u32 as 4 byte character codes, taking into account
 /// the displayable copyright we expect and expclicitly converting
 /// to hex for anything else that's not ASCII as rust stringification defines it.
@@ -65,6 +47,25 @@ impl std::fmt::Debug for FourCC {
     }
 }
 
+/// Boxes are either a pure conatiner, a special container (has data),
+/// or not a conatiner.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ContainerType {
+    Container,
+    Special(usize), // Sizes can only be u32 so we can't skip more than that.
+    NotContainer,
+}
+
+/// A BoxSpec identifies properties of a box and carrys the basic informaiton.
+// TOD(jdr); do we really need to carry around bt_id?
+#[derive(PartialEq, Eq)]
+pub struct BoxSpec {
+    pub bt_id: u32,                // 32bit CC equivelant
+    pub container: ContainerType,  // Indicates if it's a container and full or simple, or other
+    pub full: bool,                // Indicates a FullBox vs. a Box.
+    pub description: &'static str, // Text description of box contents, pulled from table.
+}
+
 impl fmt::Debug for BoxSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let cntr = match self.container {
@@ -87,7 +88,7 @@ impl fmt::Debug for BoxSpec {
 macro_rules! def_boxes {
     ($($box_name:ident, $id:expr, $cc:literal, $container:expr, $full:expr, $comment_name:literal, $comment_path:literal;) * ) => {
 
-        /// An enumeration item for each of the known MPEG4 boxes, and an catch-all uknknown.
+        /// An enumeration item for each of the known MPEG4 boxes, and a catch-all uknknown.
         #[derive(Debug,PartialEq, Eq)]
         pub enum BoxType {
             $($box_name(BoxSpec)), *,
@@ -98,7 +99,7 @@ macro_rules! def_boxes {
                 #[doc = $comment_name]
                 #[doc = "  "]
                 #[doc = $comment_path]
-                pub const $box_name: BoxType = BoxType::$box_name(BoxSpec{bt_id: $id, container: $container, full: $full});
+                pub const $box_name: BoxType = BoxType::$box_name(BoxSpec{bt_id: $id, container: $container, full: $full, description: $comment_name});
             )*
 
         impl BoxType {
@@ -140,6 +141,7 @@ macro_rules! def_boxes {
                         bt_id: t,
                         container: ContainerType::NotContainer,
                         full: false,
+                        description: "Unknown",
                     }),
                 }
             }
@@ -240,17 +242,19 @@ define_boxes! {
     ILST, b"ilst",      ContainerType::Container,      false,  "Item List - Apple metadata container", "/mnoov/udata/meta/ilst";
     AART, b"aart",      ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/aart";
     AARTC, b"aART",     ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/aART";
-    AKID, b"akID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/akID";
-    ATID, b"atID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/atID";
+    AKID, b"akID",      ContainerType::Container,      false,  "Itunes ID ?",                          "/moov/udata/meta/ilst/akID";
+    APID, b"apID",      ContainerType::Container,      false,  "Apple Store Account ID",               "/moov/udata/meta/ilst/aPID";
+    ATID, b"atID",      ContainerType::Container,      false,  "Apple Store Album Title ID",           "/moov/udata/meta/ilst/atID";
     CATG, b"catg",      ContainerType::Container,      false,  "Category",                             "/moov/udata/meta/ilst/catg";
     COVR, b"covr",      ContainerType::Container,      false,  "Cover Art",                            "/moov/udata/meta/ilst/covr";
-    CMID, b"cmID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/cmID";
+    CNID, b"cnID",      ContainerType::Container,      false,  "Apple Store Catalog ID",               "/moov/udata/meta/ilst/cmID";
+    CMID, b"cmID",      ContainerType::Container,      false,  "Apple Store / ItunesID?",              "/moov/udata/meta/ilst/cmID";
     CPIL, b"cpil",      ContainerType::Container,      false,  "Compilation boolean",                  "/moov/udata/meta/ilst/cpil";
     CPRT, b"cprt",      ContainerType::Container,      false,  "Copyright",                            "/moov/udata/meta/ilst/cprt";
     DATA, b"data",      ContainerType::NotContainer,   true,   "Data box for ILST data",               "/moov/udata/meta/ilist/<ilst-entry>/data";
     DESC, b"desc",      ContainerType::NotContainer,   true,   "Description",                          "/moov/udata/meta/ilist/<ilst-entry>/desc";
     DISK, b"disk",      ContainerType::Container,      false,  "Disk number and total disks",          "/moov/udata/meta/ilst/disk";
-    GEID, b"geID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/geID";
+    GEID, b"geID",      ContainerType::Container,      false,  "Genre ID",                             "/moov/udata/meta/ilst/geID";
     GNRE, b"gnre",      ContainerType::Container,      false,  "Genre",                                "/moov/udata/meta/ilst/gnre";
     HDVD, b"hdvd",      ContainerType::Container,      false,  "High Definition Video",                "/moov/udata/meta/ilst/hdvd";
     KEYW, b"keyw",      ContainerType::Container,      false,  "Key Word",                             "/moov/udata/meta/ilst/keyw";
@@ -258,16 +262,17 @@ define_boxes! {
     OWNR, b"ownr",      ContainerType::Container,      false,  "Owner",                                "/moov/udata/meta/ilst/ownr";
     PGAP, b"pgap",      ContainerType::Container,      false,  "Program Gap boolean",                  "/moov/udata/meta/ilst/pgap";
     PCST, b"pcst",      ContainerType::Container,      false,  "Podcast",                              "/moov/udata/meta/ilst/pcst";
+    PLID, b"plID",      ContainerType::Container,      false,  "ITunes Playlist ID",                   "/moov/udata/meta/ilst/pcst";
     PURD, b"purd",      ContainerType::Container,      false,  "Purchase Date",                        "/moov/udata/meta/ilst/purd";
     RATE, b"rate",      ContainerType::Container,      false,  "Rating",                               "/moov/udata/meta/ilst/rate";
     RTNG, b"rtng",      ContainerType::Container,      false,  "Advisory",                             "/moov/udata/meta/ilst/rtng";
+    SFID, b"sfID",      ContainerType::Container,      false,  "Apple Store / ITunes ID?",             "/moov/udata/meta/ilst/sfID";
     SOAA, b"soaa",      ContainerType::Container,      false,  "Sort Album Artist",                    "/moov/udata/meta/ilst/soaa";
     SOAL, b"soal",      ContainerType::Container,      false,  "Sort ALbum",                           "/moov/udata/meta/ilst/soal";
     SOAR, b"soar",      ContainerType::Container,      false,  "Sort Artist",                          "/moov/udata/meta/ilst/soar";
     SOCO, b"soco",      ContainerType::Container,      false,  "Sort Composer",                        "/moov/udata/meta/ilst/soco";
     SONM, b"sonm",      ContainerType::Container,      false,  "Sort Name",                            "/moov/udata/meta/ilst/sonm";
     SOSN, b"sosn",      ContainerType::Container,      false,  "Sort Show",                            "/moov/udata/meta/ilst/sosn";
-    SFID, b"SFID",      ContainerType::Container,      false,  "Protection?",                          "/moov/udata/meta/ilst/sfID";
     STIK, b"stik",      ContainerType::Container,      false,  "Media Type",                           "/moov/udata/meta/ilst/stik";
     TMPO, b"tmpo",      ContainerType::Container,      false,  "Tempo guide",                          "/moov/udata/meta/ilst/tmpo";
     TRKN, b"trkn",      ContainerType::Container,      false,  "Track number and total tracks",        "/moov/udata/meta/ilist/trkn";
@@ -276,6 +281,7 @@ define_boxes! {
     TVNN, b"tvnn",      ContainerType::Container,      false,  "TV Network Name",                      "/moov/udata/meta/ilist/tvnn";
     TVSH, b"tvsh",      ContainerType::Container,      false,  "TV Show Name",                         "/moov/udata/meta/ilist/tvsh";
     TVSN, b"tvsn",      ContainerType::Container,      false,  "TV Show Number",                       "/moov/udata/meta/ilist/tvsn";
+    XID,  b"xid ",      ContainerType::Container,      false,  "Vendor Id",                            "/moov/udata/meta/ilist/xid ";
     XALB, b"\xa9alb",   ContainerType::Container,      false,  "Album title",                          "/moov/udata/meta/ilst/©alb";
     XART, b"\xa9art",   ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©art";
     XARTC,b"\xa9ART",   ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/©ART";

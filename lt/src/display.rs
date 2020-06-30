@@ -127,7 +127,10 @@ pub fn list_files(mut p: PathBuf) -> Result<(), Box<dyn Error>> {
               format!("{} KHz", (f.sample_rate() / 1000.0)),
               format!("{} bits", f.bits_per_sample.to_string()),
               format!("{}", f.codec),
-              format!("{}", f.avg_bitrate),
+              format!(
+                "{} Kbps",
+                (f.avg_bitrate / 1000).to_formatted_string(&Locale::en)
+              ),
               pn,
             ]);
           }
@@ -303,6 +306,7 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
         tes.push(Te("Channels", f.channels.to_formatted_string(&Locale::en)));
         tes.push(Te("Channel Config", format!("{}", f.channel_config)));
         tes.push(Te("Duration", format_duration(&f.duration(), false)));
+        tes.push(Te("DRM Protection", f.protected.to_string()));
       }
     }
   }
@@ -443,7 +447,7 @@ const MPEG4_LIST_TITLES: [&str; 8] = [
   "Sample Rate",
   "Depth",
   "Codec",
-  "Avg Bitrate",
+  "Bitrate",
   "File",
 ];
 

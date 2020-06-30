@@ -175,7 +175,13 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                     let val = String::from_utf8_lossy(v).to_string();
 
                     // Insert all the string pairs into the general metadata.
-                    md.text.insert(bt.four_cc(), val.clone());
+                    md.text.insert(
+                        bt.four_cc(),
+                        track::MetaEntry {
+                            description: bt.spec().description.to_string(),
+                            value: val.clone(),
+                        },
+                    );
 
                     // Then capture the specifics based on
                     // the box previous ilst box type.
@@ -212,7 +218,13 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                 },
                 ilst::DataBoxContent::Byte(v) => {
                     // TODO(jdr): Consider adding a text translation.
-                    md.byte.insert(bt.four_cc(), v); // TOOO(jdr): Do we want to change the Track Metadata to tak str().
+                    md.byte.insert(
+                        bt.four_cc(),
+                        track::MetaEntry {
+                            description: bt.spec().description.to_string(),
+                            value: v,
+                        },
+                    );
                 }
             }
         }
@@ -233,6 +245,14 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                 &mut format.sr,
             );
             format.channels = channels as u8;
+            // TODO(jdr): Change this to pull out the DRM protection
+            // from the schm box.
+            format.protected = !(b.box_type == box_types::MP4A);
+
+            //     box_types::MP4A => false,
+            //     box_types::DRMS => true,
+            //     _ => false, // won't get here.
+            // };
 
             // TODO(jdr): This might be better obtained from somewhere else.
             // e.g. FTYP.

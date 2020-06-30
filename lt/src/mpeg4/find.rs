@@ -59,7 +59,7 @@ pub fn find_box<'a>(path: &str, mut b: &'a [u8]) -> Option<MP4Box<'a>> {
 
     let mut bts = Vec::new();
     let mut v: Vec<&str> = path.rsplit('/').collect();
-    // eprintln!("V = {:?}", v);
+
     if v[v.len() - 1].is_empty() {
         v.remove(v.len() - 1);
     };
@@ -69,6 +69,11 @@ pub fn find_box<'a>(path: &str, mut b: &'a [u8]) -> Option<MP4Box<'a>> {
 
     // Translate the path elements into a stack of BoxTypes
     for s in v {
+        // If ANY of the path elements are not FourCC
+        // we just return None.
+        if s.len() < 4 {
+            return None;
+        }
         let bs = &s.as_bytes()[0..4];
         let bt: box_types::BoxType = From::from(bs);
         bts.push(bt);
@@ -121,5 +126,17 @@ mod tests {
 
         bx = find_box("trak/tkhd", buf).unwrap();
         assert_eq!(bx.box_type, box_types::TKHD);
+
+        bx = find_box("tkhd", buf).unwrap();
+        assert_eq!(bx.box_type, box_types::TKHD);
+
+        // TODO(jdr): This may not be the behavior we like.
+        // There are some "s character strings", which
+        // are constructed with spaces: ascii 0x20 == ' '.
+        // Couple of things we could do:
+        // - Reject any strings < 4 chars long.
+        // - Pad anything with < 4 chars to 4 chars with spaces.
+        assert_eq!(find_box("/", buf), None);
+        assert_eq!(find_box("/key", buf), None);
     }
 }
