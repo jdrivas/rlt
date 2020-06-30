@@ -29,7 +29,7 @@ impl<'a> fmt::Debug for BoxCounter {
 /// A stack of BoxCounters used to capture containers and when they've been filled.
 /// This particularly useful for understanding the context in which a box has been
 /// found (ie the path to the box) as well as for doing things like
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct LevelStack {
     levels: Vec<BoxCounter>,
 }
@@ -48,7 +48,7 @@ impl LevelStack {
     /// so many bytes of against the total in the enclosing container.
     /// 2. If this is a container, add this box to the stack to account
     /// for comming enclosed boxes.
-    /// 3. If there is not box on the staic and this is
+    /// 3. If there is not box on the stack and this is
     /// not a container, we can safely ignore the box for level stacking purposes.
     pub fn add_box(&mut self, b: boxes::MP4Box) {
         if !self.levels.is_empty() {
@@ -57,16 +57,19 @@ impl LevelStack {
             let mut last = self.levels.last_mut().unwrap();
             last.count += b.size as usize;
 
-            // Don't forget to count the goofy special boxes that are both
-            // containers boxes that have things in them that count against
-            // their sizes.
-            if let ContainerType::Special(v) = last.box_type.spec().container {
-                last.count += v;
-            };
+            // // Don't forget to count the goofy special boxes that are both
+            // // containers boxes that have things in them that count against
+            // // their sizes.
+            // if let ContainerType::Special(v) = last.box_type.spec().container {
+            //     last.count += v;
+            //     println!(
+            //         "Adding 'special' adddition to count: {} count: {}",
+            //         v, last.count
+            //     );
+            // };
         }
 
         if b.box_type.is_container() {
-            // self.push_new(b.buf.len(), b.box_type);
             self.push_new(b.size as usize, b.box_type);
         }
     }
@@ -84,9 +87,16 @@ impl LevelStack {
     // }
 
     fn push_new(&mut self, sz: usize, bt: BoxType) {
+        // act as if you've read in the header
+        let mut c = bt.header_size();
+        // ... and any additional amount that's in a "Special Container".
+        if let ContainerType::Special(v) = bt.spec().container {
+            // println!("Adding a special conatiner with size: {}", v);
+            c += v;
+        }
         self.levels.push(BoxCounter {
             size: sz,
-            count: bt.header_size(), // act as if you've read in the header.
+            count: c,
             box_type: bt,
         });
     }
@@ -140,11 +150,16 @@ impl LevelStack {
         if !self.is_empty() {
             let last = self.levels.last().unwrap();
             // println!(
-            //     "Checking complete: Size: {}, Count: {}, Diff: {}",
-            //     last.size,
-            //     last.count,
+            //     "Checking complete: {:?}, Diff: {}",
+            //     last,
             //     last.size as i32 - last.count as i32
             // );
+            if last.size < last.count {
+                eprintln!(
+                    "Just grew past current container! Diff = {}",
+                    last.size as i32 - last.count as i32
+                );
+            }
             last.size == last.count
         } else {
             false
@@ -194,6 +209,24 @@ impl LevelStack {
     }
 }
 
+impl<'a> fmt::Debug for LevelStack {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut ts = "".to_string();
+        for l in &self.levels {
+            writeln!(
+                f,
+                "{}{:?} - Size: {}, Count: {}",
+                ts,
+                l.box_type.four_cc(),
+                l.size,
+                l.count
+            )?;
+            ts += "\t";
+        }
+        Ok(())
+    }
+}
+
 /// Tabs
 ///  Helper wrapper for indenting and undenting.
 /// Default to tabs, but could be used to add any single char.
@@ -240,27 +273,45 @@ impl fmt::Display for Tabs {
 
 #[allow(clippy::explicit_counter_loop)]
 pub fn dump_buffer(buf: &[u8]) {
+    let w = num_digits(buf.len());
     let mut ascii: String = "".to_string();
     let mut line = 0;
+    let mut offset = 0;
+
+    // Print the first offset
+    print!("{:0width$}: ", offset, width = w);
+    offset += 16;
     for (i, b) in buf.iter().enumerate() {
-        // End of line.
+        // End of line
         if i % 16 == 0 && line != 0 {
-            println!("  {}", ascii);
+            // Print the ascii portion
+            println!(" {}", ascii);
             ascii = "".to_string();
+
+            // print the offset at the front of the new line.
+            print!("{:0width$}: ", offset, width = w);
+            offset += 16;
         }
+        // Extra space for each 4 bytes.
         if i % 4 == 0 {
             print!(" ");
             ascii += " ";
         }
 
+        // Push the ascii char to print at end of line
         if b.is_ascii_alphanumeric() || b.is_ascii_punctuation() {
             ascii.push(*b as char);
         } else {
             ascii.push('.');
         }
+
+        // Print the character in hex.
         print!("{:02x} ", b);
         line += 1;
     }
+
+    // Deal with lineing up the last Ascii line
+    // slide over to cover the rag of the last line.
     let left = 16 - buf.len() % 16;
     if left > 0 {
         let mut spaces: String = "".to_string();
@@ -272,6 +323,17 @@ pub fn dump_buffer(buf: &[u8]) {
     // println!("Left: {}", left);
 }
 
+// Count base 10 digits of a number
+// useful for computing formating widths
+fn num_digits(v: usize) -> usize {
+    let mut count = 1;
+    let mut n = v / 10;
+    while n > 0 {
+        count += 1;
+        n /= 10;
+    }
+    count
+}
 #[cfg(test)]
 mod tests {
 
@@ -318,7 +380,6 @@ mod tests {
         ]);
 
         for t in &mut tests {
-            // First Container and simple box.
             let mut l = LevelStack::new();
             println!("Empty stack: {:?}", l);
 
@@ -407,6 +468,10 @@ mod tests {
 
     fn new_container(s: u32, id: u32) -> MP4Box<'static> {
         new_empty_box(s, id, ContainerType::Container, false)
+    }
+
+    fn new_special_container(s: u32, id: u32, v: usize, fl: bool) -> MP4Box<'static> {
+        new_empty_box(s, id, ContainerType::Special(v), false)
     }
 
     fn new_empty_box(s: u32, id: u32, ct: ContainerType, fl: bool) -> MP4Box<'static> {
