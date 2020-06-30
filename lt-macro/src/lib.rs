@@ -29,6 +29,14 @@ fn byte_string_to_int_literal(tt: TokenTree) -> syn::LitInt {
     li
 }
 
+/// Takes the "database" of box definitions:
+///
+/// Ident   FoucCC     Container Type                  Full    Description       Path
+/// FTYP,     b"ftyp",    ContainerType::NotContainer, false,  "File Container"  "/ftyp";
+///
+/// and creates an extra column turning the FourCC into an integer constant.
+/// The output of the macro is the new table surrounded by a call to the
+/// def_boxes! macro defined in the place where this is called.
 #[proc_macro]
 pub fn define_boxes(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = proc_macro2::TokenStream::from(input);
@@ -65,6 +73,8 @@ pub fn define_boxes(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     output.into()
 }
 
+/// Takes the input token stream and parses it into columns.
+/// Each returned _ParseEntry is a line from the table.
 fn parse_entries(input: TokenStream) -> Vec<_ParseEntry> {
     let mut entries = Vec::new();
     let mut e = _ParseEntry {
