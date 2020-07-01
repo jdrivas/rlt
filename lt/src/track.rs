@@ -19,6 +19,7 @@ use std::time::Duration;
 use std::vec::Vec;
 
 use crate::mpeg4;
+use crate::mpeg4::formats::DRMSchemes;
 use format::consts::FORMAT_CLEAN;
 use mpeg4::formats::{AudioObjectTypes, ChannelConfig};
 use prettytable::{format, Table};
@@ -167,6 +168,8 @@ pub struct MPEG4AudioFormat {
   pub avg_bitrate: u32,
   /// Is the file encrypted with DRM
   pub protected: bool,
+  /// Four character code used to identify the protection scheme
+  pub protection_scheme: Option<DRMSchemes>,
 }
 
 impl MPEG4AudioFormat {
@@ -476,6 +479,8 @@ pub struct Track {
   pub artist: Option<String>,
   /// Album title.
   pub album: Option<String>,
+  /// Album Artist
+  pub album_artist: Option<String>,
   /// Track number out of a total number of tracks.
   pub track_number: Option<u32>,
   /// Total number of tracks for the album/collection this track is a part of.
@@ -501,6 +506,7 @@ impl Default for Track {
       title: None,
       artist: None,
       album: None,
+      album_artist: None,
       track_number: None,
       track_total: None,
       disk_number: None,

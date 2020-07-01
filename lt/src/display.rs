@@ -3,6 +3,7 @@ extern crate num_format;
 use crate::album;
 use crate::file;
 use crate::mpeg4;
+use crate::mpeg4::boxes::box_types::FourCC;
 use crate::track;
 use format::consts::FORMAT_CLEAN;
 use num_format::{Locale, ToFormattedString};
@@ -215,16 +216,20 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
     tk.file_format.unwrap_or_else(|| NONE_SHORT.to_string()),
   ));
   tes.push(Te(
-    "Artist",
-    tk.artist.unwrap_or_else(|| NONE_SHORT.to_string()),
-  ));
-  tes.push(Te(
     "Album",
     tk.album.unwrap_or_else(|| NONE_SHORT.to_string()),
   ));
   tes.push(Te(
+    "Album Artist",
+    tk.album_artist.unwrap_or_else(|| NONE_SHORT.to_string()),
+  ));
+  tes.push(Te(
     "Title",
     tk.title.unwrap_or_else(|| NONE_SHORT.to_string()),
+  ));
+  tes.push(Te(
+    "Artist",
+    tk.artist.unwrap_or_else(|| NONE_SHORT.to_string()),
   ));
   tes.push(Te(
     "Track",
@@ -307,6 +312,11 @@ fn describe_track(tk: track::Track) -> Result<(), Box<dyn Error>> {
         tes.push(Te("Channel Config", format!("{}", f.channel_config)));
         tes.push(Te("Duration", format_duration(&f.duration(), false)));
         tes.push(Te("DRM Protection", f.protected.to_string()));
+        tes.push(Te(
+          "DRM Type",
+          f.protection_scheme
+            .map_or(NONE_SHORT.to_string(), |x| format!("{}", x)),
+        ));
       }
     }
   }

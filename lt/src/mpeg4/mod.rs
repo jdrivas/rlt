@@ -14,8 +14,9 @@ use crate::file;
 use crate::file::FileFormat;
 use crate::track;
 use boxes::box_types;
-use boxes::box_types::BoxType;
+use boxes::box_types::{BoxType, FourCC};
 use boxes::{ilst, mdia, read_box_size_type, stbl, MP4Buffer};
+use formats::DRMSchemes;
 
 use std::error::Error;
 use std::io::{Read, Seek};
@@ -161,13 +162,14 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
         panic!("Metadata not attached to track.")
     };
 
-    match b.box_type {
-        box_types::DATA => {
+    match &b.box_type {
+        &box_types::DATA => {
             let db = ilst::get_data_box(&mut b);
 
-            // This is used in the data box read as it's
-            // the previous box type (direct ilist child e.g. TRK ) that determines
-            // the key for the metadata.
+            // This is used to determine where the data goes.
+            // It's the previous box type that determines
+            // the key for the metadata. eg. ilist/trkn/data implies that the
+            // data is a track number.
             let bt = &path.top().unwrap().box_type;
             match db {
                 // if let DataBoxContent::Text(v) = db {
@@ -187,9 +189,10 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                     // the box previous ilst box type.
                     match *bt {
                         box_types::XALB => tk.album = Some(val),
+                        box_types::AARTC => tk.album_artist = Some(val),
                         box_types::XNAM => tk.title = Some(val),
                         box_types::XART | box_types::XARTC | box_types::AART => {
-                            tk.artist = Some(val)
+                            tk.artist = Some(val);
                         }
                         // For the sort order types
                         // give prioirty first to the actuals, above.
@@ -236,7 +239,7 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
         // DRMS _should_ have an enclsoing sinf box, which will have an frma box
         //  ( /moov ... /stsd/drms/sinf/frma) which will identify MPG4A as
         // the originally type.
-        box_types::MP4A | box_types::DRMS => {
+        &box_types::MP4A | &box_types::DRMS => {
             let mut channels: u16 = 0;
             stbl::read_mp4a(
                 &mut b,
@@ -258,9 +261,20 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
             // e.g. FTYP.
             // tk.file_format = Some(String::from_utf8_lossy(fmt).into_owned());
         }
+        // If this is present then we've also got a protection scheme.
+        &box_types::PINF => format.protected = true,
+        // This should also be present.
+        // TODO(jdr): possibly we move the whole protection thing into here.
+        &box_types::SCHM => {
+            let mut v = 0;
+            stbl::read_schm(&mut b, &mut v);
+            println!("DRM Scheme = {:#010x}", v);
+            format.protection_scheme = Some(DRMSchemes::from(v));
+        }
+            ,
         // This should be contained by an MP4A block, but could be comming
         // from multiple tracks.
-        box_types::ESDS => {
+        &box_types::ESDS => {
             let mut sampling_frequency: u32 = 0;
             stbl::read_esds(
                 &mut b,
@@ -272,7 +286,7 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                 &mut format.channel_config,
             );
         }
-        box_types::MDHD => {
+        &box_types::MDHD => {
             let mut creation: u64 = 0;
             let mut modification: u64 = 0;
             let mut timescale: u32 = 0;
@@ -297,7 +311,9 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
                 Utc,
             );
         }
-        box_types::MDAT => md.media_size = b.size,
+        &box_types::MDAT => md.media_size = b.size,
+        // TODO(jdr): This should require a flag to turn on the printing.
+        box_types::BoxType::Unknown(s) => eprintln!("Unknown box type: {:?}", s),
         _ => (),
     }
 

@@ -459,3 +459,9 @@ fn read_tag6(bx: &mut MP4Box) {
     let _data = bx.buf.get_u8();
     // println!("Data is; {}", data);
 }
+
+/// Reads the scheme FourCC from the schm box.
+pub fn read_schm(bx: &mut MP4Box, scheme: &mut u32) {
+    bx.buf.advance(FULL_BOX_HEADER_SIZE);
+    *scheme = bx.buf.get_u32();
+}

@@ -153,7 +153,7 @@ impl Default for AudioObjectTypes {
 /// 6: 6 channels: front-center, front-left, front-right, back-left, back-right, LFE-channel
 /// 7: 8 channels: front-center, front-left, front-right, side-left, side-right, back-left, back-right, LFE-channel
 /// 8-15: Reserved
-// TODO(jdr): consider adding a u8 to Unknown to capture the value that was read.
+// TODO(jdr): consider adding a u8 to Unknown to capture the value that was read
 // In addition we could define 8-15 -> Reserved1-Reserved8 or Reserved-08 - Reserved-15
 #[allow(non_camel_case_types)]
 #[derive(FromPrimitive, ToPrimitive)]
@@ -222,5 +222,44 @@ impl From<u8> for ChannelConfig {
 impl Default for ChannelConfig {
     fn default() -> Self {
         ChannelConfig::Unknown
+    }
+}
+
+/// Collected DRM Schemes from the schm box.
+// TODO(jdr): I would really like to be able to capture unknown
+// values pased into from(v) and then print them out with the Unknown
+// Enumerate that was used.
+// Unfortunately while Unknown(u32) as a variant is allowed,
+// it's not allowed when you assign the "value" to the variant
+// like we do to get the clever matching on u32's we use.
+pub enum DRMSchemes {
+    Unknown = 0,
+    AppleFairPlay = 0x69_74_75_6e, // b"itun"
+}
+
+impl std::fmt::Display for DRMSchemes {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            DRMSchemes::Unknown => f.write_str("Unknown"),
+            DRMSchemes::AppleFairPlay => f.write_str("Apple FairPlay"),
+        }
+    }
+}
+
+impl std::fmt::Debug for DRMSchemes {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            DRMSchemes::Unknown => f.write_str("Unknown[{}]"),
+            DRMSchemes::AppleFairPlay => f.write_str("Apple FairPlay (b\"itun\")/0x69_74_75_7e)"),
+        }
+    }
+}
+
+impl From<u32> for DRMSchemes {
+    fn from(v: u32) -> Self {
+        match v {
+            v if v == DRMSchemes::AppleFairPlay as u32 => DRMSchemes::AppleFairPlay,
+            _ => DRMSchemes::Unknown,
+        }
     }
 }

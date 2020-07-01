@@ -225,11 +225,16 @@ define_boxes! {
 
     // Sample Table Boxes
     STBL, b"stbl",      ContainerType::Container,      false,  "Sample Table Box Container",           "/moov/trak/mdia/minf/stbl";
+    CERT, b"cert",      ContainerType::NotContainer,   false,  "Protection information CERT",          "moov/track/mdia/minf/stbl/stsd/mp4a/pinf/schi/cert";
+    CHTB, b"chtb",      ContainerType::NotContainer,   false,  "Protection information CHTB",          "moov/track/mdia/minf/stbl/stsd/mp4a/pinf/schi/cert";
     DRMS, b"drms",      ContainerType::Special(28),    false,  "Digital Rights Management",            "/moov/track/mdia/minf/stbl/stsd/drms";
     ESDS, b"esds",      ContainerType::NotContainer,   true,   "Elementary Stream Descriptor",         "/moov/track/mdia/minf/stbl/stsd/{mp4a,drms}/esds";
     FRMA, b"frma",      ContainerType::NotContainer,   false,  "Original Format Box",                  "moov/track/mdia/minf/stbl/stsd/drms/sinf/frma";
     MP4A, b"mp4a",      ContainerType::Special(28),    false,  "MPEG 4 Audio SampleEntry Box",         "/moov/track/mdia/minf/stbl/stsd/mp4a";
-    SCHI, b"schi",      ContainerType::Container,      false,  "Scheme (Specific) Information Box",    "/moov/track/mdia/minf/stbl/drms/schi";
+    PINF, b"pinf",      ContainerType::Container,      false,  "Protection Information Box",           "/moov/track/mdia/minf/stbl/mp4a/pinf";
+    RIGH, b"righ",      ContainerType::NotContainer,      false,  "Protection information Rights",        "moov/track/mdia/minf/stbl/stsd/mp4a/pinf/schi/righ";
+    SBTD, b"sbtd",      ContainerType::NotContainer,   true,  "Protection Information SBTD",               "/moov/track/mdia/minf/stbl/drms/schi";
+    SCHI, b"schi",      ContainerType::Container,      false,  "Protection Information Container",               "/moov/track/mdia/minf/stbl/drms/schi";
     SCHM, b"schm",      ContainerType:NotContainer,    true,   "Protection Sceheme Informaiton Box",   "/moov/track/mdia/minf/stbl/drms/schm";
     SINF, b"sinf",      ContainerType::Container,      false,  "Protection Scheme Information Box",    "/moov/track/mdia/minf/stbl/drms/sinf";
     STCO, b"stco",      ContainerType::NotContainer,   true,   "Chunk Offsets",                        "/moov/track/mdia/minf/stbl/stco";
@@ -237,11 +242,12 @@ define_boxes! {
     STSD, b"stsd",      ContainerType::Special(4),     true,   "Sample Description",                   "/moov/track/mdia/minf/stbl/stsd";
     STTS, b"stts",      ContainerType::NotContainer,   true,   "Time to sample",                       "/movv/track/mdia/minf/stbl/stts";
     STSZ, b"stsz",      ContainerType::NotContainer,   true,   "Sample Sizes",                         "/moov/track/mdia/minf/stbl/stsz";
+    USER, b"user",      ContainerType::NotContainer,   false,   "Sample Sizes",                         "/moov/track/mdia/minf/stbl/stsz";
 
     // ILST is Apples meta data block.
     ILST, b"ilst",      ContainerType::Container,      false,  "Item List - Apple metadata container", "/mnoov/udata/meta/ilst";
     AART, b"aart",      ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/aart";
-    AARTC, b"aART",     ContainerType::Container,      false,  "Artist",                               "/moov/udata/meta/ilst/aART";
+    AARTC, b"aART",     ContainerType::Container,      false,  "Album Artist",                         "/moov/udata/meta/ilst/aART";
     AKID, b"akID",      ContainerType::Container,      false,  "Itunes ID ?",                          "/moov/udata/meta/ilst/akID";
     APID, b"apID",      ContainerType::Container,      false,  "Apple Store Account ID",               "/moov/udata/meta/ilst/aPID";
     ATID, b"atID",      ContainerType::Container,      false,  "Apple Store Album Title ID",           "/moov/udata/meta/ilst/atID";
@@ -294,4 +300,6 @@ define_boxes! {
     XTOO, b"\xa9too",   ContainerType::Container,      false,  "Encoder",                              "/moov/udata/meta/ilst/©too";
     XWRT, b"\xa9wrt",   ContainerType::Container,      false,  "Writer/Author",                        "/moov/udata/meta/ilst/©wrt";
     ____, b"----",      ContainerType::Container,      false,  "Apple Special Item",                   "/moov/udata/meta/ilst/----";
+    NAME, b"name",      ContainerType::NotContainer,   true,   "Embeded in Special Item",              "/moov/udata/meta/ilst/----/name";
+    MEAN, b"mean",      ContainerType::NotContainer,   true,   "Embedded in Special Item?",            "/moov/udata/meta/ilst/----/mean";
 }
