@@ -3,8 +3,8 @@ extern crate num_format;
 use crate::album;
 use crate::file;
 use crate::mpeg4;
-use crate::mpeg4::boxes::box_types::FourCC;
 use crate::track;
+
 use format::consts::FORMAT_CLEAN;
 use num_format::{Locale, ToFormattedString};
 use prettytable::{format, Cell, Row, Table};

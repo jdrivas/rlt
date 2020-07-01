@@ -14,7 +14,7 @@ use crate::file;
 use crate::file::FileFormat;
 use crate::track;
 use boxes::box_types;
-use boxes::box_types::{BoxType, FourCC};
+use boxes::box_types::BoxType;
 use boxes::{ilst, mdia, read_box_size_type, stbl, MP4Buffer};
 use formats::DRMSchemes;
 
