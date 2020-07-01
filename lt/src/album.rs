@@ -61,8 +61,15 @@ pub fn album_from_tracks(tks: Vec<track::Track>) -> Album {
     // These might just as well be functions since they are referencing
     // internal values.
     if !album.tracks.is_empty() {
+        // Preference if we have a named album artist
+        // otherwise just take the artist in the first track.
+        if let Some(art) = &album.tracks[0].album_artist {
+            album.artist = Some(art.clone());
+        }
+        if let Some(art) = &album.tracks[0].artist {
+            album.artist.get_or_insert(art.clone());
+        }
         album.title = album.tracks[0].album.clone();
-        album.artist = album.tracks[0].artist.clone();
         album.disk_total = album.tracks[0].disk_total;
         album.track_total = Some(album.tracks.len() as u32);
     }
