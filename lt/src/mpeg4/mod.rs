@@ -268,7 +268,6 @@ fn read_box_for_track<'a>(tk: &mut track::Track, path: &'a mut LevelStack, mut b
         &box_types::SCHM => {
             let mut v = 0;
             stbl::read_schm(&mut b, &mut v);
-            println!("DRM Scheme = {:#010x}", v);
             format.protection_scheme = Some(DRMSchemes::from(v));
         }
             ,

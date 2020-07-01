@@ -204,7 +204,7 @@ macro_rules! def_boxes {
 
 #[allow(unused_parens)]
 define_boxes! {
-//  Ident Code          Container Type                 Full    Description                             Path
+//  Ident Code          Container Type                 Full    Description                             Path (these are examples and not complete)
     FTYP, b"ftyp",      ContainerType::NotContainer,   false,  "File Container",                       "/ftyp";
     DINF, b"dinf",      ContainerType::Container,      false,  "Data Container",                       "/moov/trak/mdia/minf/dinf";
     DREF, b"dref",      ContainerType::NotContainer,   true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
@@ -232,10 +232,11 @@ define_boxes! {
     FRMA, b"frma",      ContainerType::NotContainer,   false,  "Original Format Box",                  "moov/track/mdia/minf/stbl/stsd/drms/sinf/frma";
     MP4A, b"mp4a",      ContainerType::Special(28),    false,  "MPEG 4 Audio SampleEntry Box",         "/moov/track/mdia/minf/stbl/stsd/mp4a";
     PINF, b"pinf",      ContainerType::Container,      false,  "Protection Information Box",           "/moov/track/mdia/minf/stbl/mp4a/pinf";
-    RIGH, b"righ",      ContainerType::NotContainer,      false,  "Protection information Rights",        "moov/track/mdia/minf/stbl/stsd/mp4a/pinf/schi/righ";
-    SBTD, b"sbtd",      ContainerType::NotContainer,   true,  "Protection Information SBTD",               "/moov/track/mdia/minf/stbl/drms/schi";
-    SCHI, b"schi",      ContainerType::Container,      false,  "Protection Information Container",               "/moov/track/mdia/minf/stbl/drms/schi";
+    RIGH, b"righ",      ContainerType::NotContainer,   false,  "Protection information Rights",        "moov/track/mdia/minf/stbl/stsd/mp4a/pinf/schi/righ";
+    SBTD, b"sbtd",      ContainerType::NotContainer,   true,  "Protection Information SBTD",           "/moov/track/mdia/minf/stbl/drms/sbtd";
+    SCHI, b"schi",      ContainerType::Container,      false,  "Protection Information Container",     "/moov/track/mdia/minf/stbl/drms/schi";
     SCHM, b"schm",      ContainerType:NotContainer,    true,   "Protection Sceheme Informaiton Box",   "/moov/track/mdia/minf/stbl/drms/schm";
+    SIGN, b"sign",      ContainerType::NotContainer,   false,  "Protection Scheme Information Box",    "/moov/track/mdia/minf/stbl/mp4a/pinf/sign";
     SINF, b"sinf",      ContainerType::Container,      false,  "Protection Scheme Information Box",    "/moov/track/mdia/minf/stbl/drms/sinf";
     STCO, b"stco",      ContainerType::NotContainer,   true,   "Chunk Offsets",                        "/moov/track/mdia/minf/stbl/stco";
     STSC, b"stsc",      ContainerType::NotContainer,   true,   "Sample to Chunk",                      "/moov/track/mdia/minf/stbl/stsc";
