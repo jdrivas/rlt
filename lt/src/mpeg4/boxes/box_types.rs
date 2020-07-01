@@ -209,6 +209,7 @@ define_boxes! {
     DINF, b"dinf",      ContainerType::Container,      false,  "Data Container",                       "/moov/trak/mdia/minf/dinf";
     DREF, b"dref",      ContainerType::NotContainer,   true,   "Data Reference - sources of media",    "/moov/trak/mdia/minf/dref";
     HDLR, b"hdlr",      ContainerType::NotContainer,   true,   "Handler - general data handler",       "/moov/trak/mdia/hdlr, /movvo,udata/meta/hdlr";
+    LINF, b"linf",      ContainerType::NotContainer,   true,   "UDTA Information Block",               "/moov/meta, /moov/trak/udta/linf";
     META, b"meta",      ContainerType::Container,      true,   "Metadata Container",                   "/moov/meta, /moov/trak/meta, /moov/udata/meta";
     MINF, b"minf",      ContainerType::Container,      false,  "Media Information Container",          "/moov/meta, /moov/trak/meta, /moov/udata/meta";
     MDHD, b"mdhd",      ContainerType::NotContainer,   true,   "Media Data Header",                    "/moov/trak/mdia/mdhd";
@@ -219,7 +220,7 @@ define_boxes! {
     TKHD, b"tkhd",      ContainerType::NotContainer,   true,   "Track Header",                         "/movv/trak/tkhd";
     TRAK, b"trak",      ContainerType::Container,      false,  "Track Container",                      "/moov/trak";
     UDTA, b"udta",      ContainerType::Container,      false,  "User Data Container",                  "/moov/udta";
-    UUID, b"UUID",      ContainerType::NotContainer,   false,  "UUID is the user special type",         "uuid";
+    UUID, b"UUID",      ContainerType::NotContainer,   false,  "UUID is the user special type",        "uuid";
     MDAT, b"mdat",      ContainerType::NotContainer,   false,  "Media Data Box",                       "/mdat";
     FREE, b"free",      ContainerType::NotContainer,   false,  "Free Space",                           "/free";
 
